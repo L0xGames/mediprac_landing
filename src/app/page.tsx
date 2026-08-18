@@ -1,69 +1,151 @@
+"use client";
+
 import Image from "next/image";
+import type { FormEvent } from "react";
+import { useState } from "react";
 import styles from "./page.module.css";
 
+const waitlistStorageKey = "mediprac_waitlist_email";
+
 export default function Home() {
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const email = formData.get("email");
+
+    if (email) {
+      window.localStorage.setItem(waitlistStorageKey, String(email));
+      setIsSubmitted(true);
+      form.reset();
+    }
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className={styles.page}>
+      <nav className={styles.nav} aria-label="Hauptnavigation">
+        <a className={styles.brand} href="#" aria-label="mediprac Startseite">
+          <Image
+            className={styles.brandLogo}
+            src="/assets/mediprac-logo-horizontal.svg"
+            alt="mediprac"
+            width={1800}
+            height={520}
+            priority
+          />
+        </a>
+        <a className={styles.navPill} href="#warteliste">
+          Early access sichern
+        </a>
+      </nav>
+
+      <section className={styles.hero} aria-labelledby="headline">
+        <div className={styles.copy}>
+          <h1 id="headline">Quizduell fürs Medizinstudium</h1>
+          <p className={styles.lead}>
+            Miss dich in kurzen Medizin-Duellen mit Kommiliton:innen aus ganz
+            Deutschland. Anatomie, Physio, Biochemie, Pharmakologie und
+            klinische Fälle - spielerisch wiederholen statt nur kreuzen.
           </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+          <div
+            className={styles.mobileAppPreview}
+            aria-label="mediprac App Vorschau"
           >
             <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+              src="/assets/mediprac-topic-selection-current.png"
+              alt="mediprac App-Screen zur Auswahl des Fachgebiets in Runde 3"
+              width={1179}
+              height={2556}
+              priority
             />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </div>
+
+          <div className={styles.offerCallout} aria-label="Launch-Angebot">
+            <span>Launch-Angebot</span>
+            <strong>3 Monate Premium kostenlos</strong>
+          </div>
+
+          <section
+            className={`${styles.signupCard} ${isSubmitted ? styles.isSent : ""}`}
+            id="warteliste"
+            aria-label="Warteliste"
           >
-            Documentation
-          </a>
+            <form className={styles.signupForm} onSubmit={handleSubmit}>
+              <label className={styles.srOnly} htmlFor="email">
+                E-Mail-Adresse
+              </label>
+              <input
+                className={styles.emailInput}
+                id="email"
+                name="email"
+                type="email"
+                placeholder="Deine E-Mail-Adresse"
+                autoComplete="email"
+                required
+              />
+              <button className={styles.submitButton} type="submit">
+                Early access sichern
+              </button>
+            </form>
+            <p className={styles.microcopy}>Kostenloser Zugang beim Launch.</p>
+            <p className={styles.success} role="status">
+              <strong>Du bist auf Platz #248.</strong>
+              Lade 3 Kommiliton:innen ein und sichere dir Lifetime Premium.
+            </p>
+          </section>
         </div>
-      </main>
-    </div>
+
+        <div className={styles.visual} aria-label="mediprac App Vorschau">
+          <div className={styles.visualCard} aria-hidden="true" />
+          <div className={styles.phone}>
+            <Image
+              className={styles.phoneScreen}
+              src="/assets/mediprac-topic-selection-current.png"
+              alt="mediprac App-Screen zur Auswahl des Fachgebiets in Runde 3"
+              width={1179}
+              height={2556}
+              priority
+            />
+          </div>
+          <aside
+            className={`${styles.floating} ${styles.premiumBadge}`}
+            aria-label="Premium Bonus"
+          >
+            <span>Wartelisten-Bonus</span>
+            <strong>3 Monate Premium</strong>
+          </aside>
+          <aside
+            className={`${styles.floating} ${styles.duelBadge}`}
+            aria-label="Duell Hinweis"
+          >
+            <div className={styles.duelIcon} aria-hidden="true">
+              -&gt;
+            </div>
+            <div>
+              <strong>Neues Duell</strong>
+              <span>Kardiologie, Pharma, Anatomie</span>
+            </div>
+          </aside>
+          <div className={styles.topicChips} aria-hidden="true">
+            <span className={styles.chip} />
+            <span className={styles.chip} />
+            <span className={styles.chip} />
+          </div>
+        </div>
+      </section>
+
+      <footer className={styles.launchStrip}>
+        <span>
+          <strong>mediprac</strong> startet bald in Deutschland.
+        </span>
+        <span>
+          Gemacht für schnelle Wiederholung zwischen Uni, Station und
+          Klausurphase.
+        </span>
+      </footer>
+    </main>
   );
 }

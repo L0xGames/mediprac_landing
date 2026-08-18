@@ -1,150 +1,506 @@
 .page {
-  --background: #fafafa;
-  --foreground: #fff;
+  width: min(1040px, calc(100% - 40px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 22px 0 28px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 22px;
+}
 
-  --text-primary: #000;
-  --text-secondary: #666;
-
-  --button-primary-hover: #383838;
-  --button-secondary-hover: #f2f2f2;
-  --button-secondary-border: #ebebeb;
-
+.nav {
   display: flex;
-  flex: 1;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-family: var(--font-geist-sans);
-  background-color: var(--background);
-}
-
-.main {
-  display: flex;
-  flex: 1;
-  width: 100%;
-  max-width: 800px;
-  flex-direction: column;
-  align-items: flex-start;
   justify-content: space-between;
-  background-color: var(--foreground);
-  padding: 120px 60px;
 }
 
-.intro {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: 24px;
+.brand {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
 }
 
-.intro h1 {
-  max-width: 320px;
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 48px;
-  letter-spacing: -2.4px;
-  text-wrap: balance;
-  color: var(--text-primary);
+.brandLogo {
+  display: block;
+  width: 154px;
+  height: auto;
 }
 
-.intro p {
-  max-width: 440px;
-  font-size: 18px;
-  line-height: 32px;
-  text-wrap: balance;
-  color: var(--text-secondary);
+.navPill {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--green-dark);
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 650;
+  box-shadow: 0 8px 26px rgba(68, 55, 35, 0.06);
 }
 
-.intro a {
-  font-weight: 500;
-  color: var(--text-primary);
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 410px;
+  align-items: center;
+  gap: 42px;
 }
 
-.ctas {
-  display: flex;
-  flex-direction: row;
+.copy h1 {
+  margin: 0;
+  max-width: 580px;
+  font-size: clamp(40px, 5.4vw, 62px);
+  line-height: 1.02;
+  font-weight: 520;
+  letter-spacing: 0;
+}
+
+.lead {
+  max-width: 600px;
+  margin: 20px 0 0;
+  color: #4f4a43;
+  font-size: clamp(17px, 1.7vw, 19px);
+  line-height: 1.45;
+}
+
+.mobileAppPreview {
+  display: none;
+}
+
+.offerCallout {
+  width: min(100%, 500px);
+  margin-top: 24px;
+  padding: 16px 18px;
+  border: 2px solid rgba(247, 196, 13, 0.78);
+  border-radius: 24px;
+  background: #fff7d8;
+  box-shadow: 0 16px 40px rgba(116, 91, 8, 0.12);
+}
+
+.offerCallout span {
+  display: block;
+  color: #756533;
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.offerCallout strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 720;
+  line-height: 1.05;
+}
+
+.signupCard {
+  width: min(100%, 500px);
+  margin-top: 14px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: var(--shadow);
+}
+
+.signupForm {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.emailInput {
+  min-width: 0;
+  height: 54px;
+  border: 0;
+  outline: none;
+  border-radius: 20px;
+  padding: 0 18px;
+  background: var(--cream);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+
+.emailInput::placeholder {
+  color: #8b857a;
+}
+
+.submitButton {
+  height: 54px;
+  border: 0;
+  border-radius: 20px;
+  padding: 0 22px;
+  background: var(--green);
+  color: var(--white);
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 680;
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.navPill:focus-visible,
+.emailInput:focus-visible,
+.submitButton:focus-visible {
+  outline: 3px solid rgba(247, 196, 13, 0.75);
+  outline-offset: 3px;
+}
+
+.submitButton:hover {
+  background: var(--green-dark);
+  transform: translateY(-1px);
+}
+
+.microcopy {
+  margin: 10px 7px 1px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.success {
+  display: none;
+  margin: 10px 7px 0;
+  color: var(--green-dark);
+  font-size: 14px;
+  line-height: 1.38;
+}
+
+.success strong {
+  display: block;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 680;
+}
+
+.signupCard.isSent .success {
+  display: block;
+}
+
+.visual {
+  position: relative;
+  min-height: 560px;
+  display: grid;
+  place-items: center;
+}
+
+.visual::before {
+  content: "";
+  position: absolute;
+  width: 112px;
+  height: 238px;
+  right: 12px;
+  top: 148px;
+  border-radius: 58px;
+  background: var(--red);
+  transform: rotate(4deg);
+  opacity: 0.96;
+}
+
+.visualCard {
+  position: absolute;
+  inset: 8% 0 auto auto;
+  width: 80%;
+  height: 72%;
+  border-radius: 44px;
+  background: var(--green);
+  box-shadow: var(--shadow);
+  transform: rotate(4deg);
+}
+
+.visualCard::before {
+  content: "";
+  position: absolute;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  top: 46px;
+  right: 34px;
+  background:
+    radial-gradient(circle at center, var(--red) 0 34%, transparent 35%),
+    var(--mint);
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.26);
+}
+
+.phone {
+  position: relative;
+  width: min(292px, 72vw);
+  aspect-ratio: 1179 / 2556;
+  border: 10px solid #111111;
+  border-radius: 40px;
+  background: #111111;
+  box-shadow: 0 28px 70px rgba(20, 16, 10, 0.34);
+  overflow: hidden;
+  transform: rotate(-5deg);
+  z-index: 2;
+}
+
+.phone::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  width: 96px;
+  height: 27px;
+  border-radius: 999px;
+  background: #050505;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+.phoneScreen {
+  display: block;
   width: 100%;
-  max-width: 440px;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 29px;
+}
+
+.floating {
+  position: absolute;
+  z-index: 4;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 44px rgba(38, 31, 19, 0.18);
+  backdrop-filter: blur(16px);
+}
+
+.premiumBadge {
+  top: 56px;
+  left: 0;
+  max-width: 176px;
+  padding: 13px 15px;
+  border-radius: 22px;
+}
+
+.premiumBadge span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.premiumBadge strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--green-dark);
+  font-size: 21px;
+  line-height: 1;
+}
+
+.duelBadge {
+  right: 0;
+  bottom: 132px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  max-width: 204px;
+  padding: 12px 14px;
+  border-radius: 24px;
+}
+
+.duelIcon {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  background: var(--green);
+  color: var(--white);
+  display: grid;
+  place-items: center;
+  font-size: 25px;
+  font-weight: 500;
+}
+
+.duelBadge strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.1;
+}
+
+.duelBadge span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.topicChips {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  bottom: 48px;
+  display: flex;
+  gap: 8px;
+  transform: rotate(-4deg);
+}
+
+.chip {
+  width: 58px;
+  height: 58px;
+  border-radius: 20px;
+  background: var(--white);
+  box-shadow: 0 16px 34px rgba(38, 31, 19, 0.12);
+  display: grid;
+  place-items: center;
+}
+
+.chip::before {
+  content: "";
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: var(--red);
+}
+
+.chip:nth-child(2)::before {
+  background: var(--purple);
+  border-radius: 50%;
+}
+
+.chip:nth-child(3)::before {
+  background: var(--yellow);
+  border-radius: 10px 10px 50% 50%;
+}
+
+.launchStrip {
+  display: flex;
+  justify-content: space-between;
   gap: 16px;
+  padding-top: 4px;
+  color: var(--muted);
   font-size: 14px;
 }
 
-.ctas a {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 128px;
-  border: 1px solid transparent;
-  transition: 0.2s;
-  cursor: pointer;
-  width: fit-content;
-  font-weight: 500;
+.launchStrip strong {
+  color: var(--ink);
 }
 
-a.primary {
-  background: var(--text-primary);
-  color: var(--background);
-  gap: 8px;
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-a.secondary {
-  border-color: var(--button-secondary-border);
-}
-
-/* Enable hover only on non-touch devices */
-@media (hover: hover) and (pointer: fine) {
-  a.primary:hover {
-    background: var(--button-primary-hover);
-    border-color: transparent;
-  }
-
-  a.secondary:hover {
-    background: var(--button-secondary-hover);
-    border-color: transparent;
-  }
-}
-
-@media (max-width: 600px) {
-  .main {
-    padding: 48px 24px;
-  }
-
-  .intro {
-    gap: 16px;
-  }
-
-  .intro h1 {
-    font-size: 32px;
-    line-height: 40px;
-    letter-spacing: -1.92px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
-  }
-
+@media (max-width: 980px) {
   .page {
-    --background: #000;
-    --foreground: #000;
+    width: min(680px, calc(100% - 28px));
+  }
 
-    --text-primary: #ededed;
-    --text-secondary: #999;
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
 
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-    --button-secondary-border: #1a1a1a;
+  .visual {
+    min-height: 500px;
+  }
+
+  .copy {
+    text-align: center;
+  }
+
+  .signupCard,
+  .offerCallout {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .lead {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .launchStrip {
+    text-align: center;
+    flex-direction: column;
   }
 }
 
-.code {
-  font-family: var(--font-geist-mono);
-  font-size: 0.9em;
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  padding: 0.1em 0.4em;
-  border-radius: 6px;
+@media (max-width: 620px) {
+  .page {
+    width: min(100% - 24px, 520px);
+    padding-top: 16px;
+    gap: 18px;
+  }
+
+  .brand {
+    height: 34px;
+  }
+
+  .brandLogo {
+    width: 128px;
+  }
+
+  .navPill {
+    display: none;
+  }
+
+  .copy h1 {
+    font-size: clamp(31px, 9vw, 40px);
+    line-height: 1.04;
+  }
+
+  .lead {
+    margin-top: 16px;
+    font-size: 16px;
+  }
+
+  .mobileAppPreview {
+    display: block;
+    width: 100%;
+    max-width: 360px;
+    height: 168px;
+    margin: 18px auto 0;
+    border: 7px solid var(--white);
+    border-radius: 28px;
+    background: var(--cream);
+    overflow: hidden;
+    box-shadow: 0 16px 38px rgba(38, 31, 19, 0.14);
+  }
+
+  .mobileAppPreview img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 54%;
+  }
+
+  .offerCallout {
+    margin-top: 14px;
+    padding: 14px 15px;
+    text-align: left;
+  }
+
+  .offerCallout strong {
+    font-size: 23px;
+  }
+
+  .signupCard {
+    margin-top: 12px;
+    border-radius: 24px;
+  }
+
+  .signupForm {
+    grid-template-columns: 1fr;
+  }
+
+  .submitButton,
+  .emailInput {
+    width: 100%;
+    height: 52px;
+  }
+
+  .visual,
+  .floating,
+  .topicChips {
+    display: none;
+  }
 }
