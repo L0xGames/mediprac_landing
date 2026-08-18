@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   description:
     "mediprac kommt bald: Quizduell fürs Medizinstudium. Sichere dir 3 Monate Premium kostenlos zum Launch.",
   icons: {
-    icon: "/favicon.png",
+    icon: "https://raw.githubusercontent.com/L0xGames/mediprac_landing/main/public/assets/favicon-32x32.png",
   },
 };
 

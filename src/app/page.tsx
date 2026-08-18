@@ -6,6 +6,10 @@ import { useState } from "react";
 import styles from "./page.module.css";
 
 const waitlistStorageKey = "mediprac_waitlist_email";
+const assetBaseUrl =
+  "https://raw.githubusercontent.com/L0xGames/mediprac_landing/main/public/assets";
+const logoUrl = `${assetBaseUrl}/mediprac-logo-horizontal.svg`;
+const appPreviewUrl = `${assetBaseUrl}/mediprac-topic-selection-current.png`;
 
 export default function Home() {
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -29,7 +33,7 @@ export default function Home() {
         <a className={styles.brand} href="#" aria-label="mediprac Startseite">
           <Image
             className={styles.brandLogo}
-            src="/assets/mediprac-logo-horizontal.svg"
+            src={logoUrl}
             alt="mediprac"
             width={1800}
             height={520}
@@ -55,7 +59,7 @@ export default function Home() {
             aria-label="mediprac App Vorschau"
           >
             <Image
-              src="/assets/mediprac-topic-selection-current.png"
+              src={appPreviewUrl}
               alt="mediprac App-Screen zur Auswahl des Fachgebiets in Runde 3"
               width={1179}
               height={2556}
@@ -103,7 +107,7 @@ export default function Home() {
           <div className={styles.phone}>
             <Image
               className={styles.phoneScreen}
-              src="/assets/mediprac-topic-selection-current.png"
+              src={appPreviewUrl}
               alt="mediprac App-Screen zur Auswahl des Fachgebiets in Runde 3"
               width={1179}
               height={2556}
