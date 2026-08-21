@@ -157,7 +157,9 @@
 
 .navPill:focus-visible,
 .emailInput:focus-visible,
-.submitButton:focus-visible {
+.submitButton:focus-visible,
+.referralLinkInput:focus-visible,
+.copyButton:focus-visible {
   outline: 3px solid rgba(247, 196, 13, 0.75);
   outline-offset: 3px;
 }
@@ -182,10 +184,58 @@
   line-height: 1.38;
 }
 
-.success strong {
+.placementLine {
   display: block;
-  color: var(--ink);
+  color: var(--green);
   font-size: 17px;
+  font-weight: 680;
+}
+
+.referralBox {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.referralProgress {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.referralProgress span:last-child {
+  color: var(--green-dark);
+  font-weight: 680;
+}
+
+.referralLinkRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.referralLinkInput {
+  min-width: 0;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0 12px;
+  background: var(--cream);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.copyButton {
+  height: 42px;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 13px;
+  background: var(--green);
+  color: var(--white);
+  cursor: pointer;
+  font-size: 13px;
   font-weight: 680;
 }
 
@@ -515,9 +565,19 @@
   }
 
   .submitButton,
-  .emailInput {
+  .emailInput,
+  .referralLinkInput,
+  .copyButton {
     width: 100%;
     height: 52px;
+  }
+
+  .referralLinkRow {
+    grid-template-columns: 1fr;
+  }
+
+  .referralProgress {
+    flex-direction: column;
   }
 
   .visual,

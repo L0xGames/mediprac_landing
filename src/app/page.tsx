@@ -12,6 +12,11 @@ export default function Home() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [position, setPosition] = useState<number | null>(null);
+  const [referralLink, setReferralLink] = useState("");
+  const [referralCount, setReferralCount] = useState(0);
+  const [referralGoal, setReferralGoal] = useState(3);
+  const [rewardUnlocked, setRewardUnlocked] = useState(false);
+  const [hasCopiedReferralLink, setHasCopiedReferralLink] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -48,6 +53,10 @@ export default function Home() {
       const payload = (await response.json().catch(() => null)) as {
         message?: string;
         position?: number;
+        referralLink?: string;
+        referralCount?: number;
+        referralGoal?: number;
+        rewardUnlocked?: boolean;
       } | null;
 
       if (!response.ok) {
@@ -55,6 +64,11 @@ export default function Home() {
       }
 
       setPosition(payload?.position ?? null);
+      setReferralLink(payload?.referralLink || "");
+      setReferralCount(payload?.referralCount ?? 0);
+      setReferralGoal(payload?.referralGoal ?? 3);
+      setRewardUnlocked(Boolean(payload?.rewardUnlocked));
+      setHasCopiedReferralLink(false);
       setIsSubmitted(true);
       form.reset();
     } catch (error) {
@@ -62,6 +76,15 @@ export default function Home() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleCopyReferralLink() {
+    if (!referralLink) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(referralLink);
+    setHasCopiedReferralLink(true);
   }
 
   return (
@@ -144,10 +167,41 @@ export default function Home() {
                 {errorMessage}
               </p>
             ) : null}
-            <p className={styles.success} role="status">
-              <strong>Du bist auf Platz #{position ?? 248}.</strong>
-              Lade 3 Kommiliton:innen ein und sichere dir Lifetime Premium.
-            </p>
+            <div className={styles.success} role="status">
+              <strong className={styles.placementLine}>
+                Du bist auf Platz #{position ?? 248}.
+              </strong>
+              <span>
+                {rewardUnlocked
+                  ? "Lifetime Premium ist freigeschaltet."
+                  : `Lade ${referralGoal} Kommiliton:innen ein und sichere dir Lifetime Premium.`}
+              </span>
+              {referralLink ? (
+                <div className={styles.referralBox}>
+                  <div className={styles.referralProgress}>
+                    <span>
+                      {Math.min(referralCount, referralGoal)}/{referralGoal} erfolgreiche Einladungen
+                    </span>
+                    <span>{rewardUnlocked ? "Freigeschaltet" : "Offen"}</span>
+                  </div>
+                  <div className={styles.referralLinkRow}>
+                    <input
+                      className={styles.referralLinkInput}
+                      value={referralLink}
+                      readOnly
+                      aria-label="Persönlicher Einladungslink"
+                    />
+                    <button
+                      className={styles.copyButton}
+                      type="button"
+                      onClick={handleCopyReferralLink}
+                    >
+                      {hasCopiedReferralLink ? "Kopiert" : "Kopieren"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </section>
         </div>
 
