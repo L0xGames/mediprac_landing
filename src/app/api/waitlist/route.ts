@@ -30,6 +30,10 @@ type WaitlistSignup = {
 };
 
 const MAX_FIELD_LENGTH = 500;
+const REMOTE_REDIS_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
+const REMOTE_REDIS_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
+const WAITLIST_LIST_KEY = "medula_waitlist:entries";
+const WAITLIST_EMAIL_PREFIX = "medula_waitlist:email:";
 const DATA_DIR = process.env.VERCEL
   ? path.join("/tmp", "medula-waitlist")
   : path.join(/*turbopackIgnore: true*/ process.cwd(), ".data");
@@ -61,6 +65,34 @@ function createSignupId(email: string, createdAt: string) {
   return createHash("sha256").update(`${email}|${createdAt}`).digest("hex").slice(0, 16);
 }
 
+function createEmailKey(email: string) {
+  return `${WAITLIST_EMAIL_PREFIX}${createHash("sha256").update(email).digest("hex")}`;
+}
+
+function hasRemoteStore() {
+  return Boolean(REMOTE_REDIS_URL && REMOTE_REDIS_TOKEN);
+}
+
+async function runRedisCommand<T>(command: unknown[]) {
+  const response = await fetch(REMOTE_REDIS_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${REMOTE_REDIS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(command),
+    cache: "no-store",
+  });
+
+  const payload = (await response.json().catch(() => null)) as { result?: T; error?: string } | null;
+
+  if (!response.ok || payload?.error) {
+    throw new Error(payload?.error || "Waitlist storage request failed.");
+  }
+
+  return payload?.result as T;
+}
+
 async function parseRequestBody(request: NextRequest): Promise<WaitlistRequestBody> {
   const text = await request.text().catch(() => "");
   if (!text) {
@@ -75,12 +107,31 @@ async function parseRequestBody(request: NextRequest): Promise<WaitlistRequestBo
 }
 
 async function appendSignup(signup: WaitlistSignup) {
+  if (hasRemoteStore()) {
+    await runRedisCommand(["SET", createEmailKey(signup.email), JSON.stringify(signup)]);
+    await runRedisCommand(["RPUSH", WAITLIST_LIST_KEY, JSON.stringify(signup)]);
+    return;
+  }
+
   const logPath = getLogPath();
   await mkdir(path.dirname(logPath), { recursive: true });
   await appendFile(logPath, `${JSON.stringify(signup)}\n`, "utf8");
 }
 
 async function readSignups() {
+  if (hasRemoteStore()) {
+    const rows = await runRedisCommand<string[]>(["LRANGE", WAITLIST_LIST_KEY, 0, -1]);
+    return (rows || [])
+      .map((line) => {
+        try {
+          return JSON.parse(line) as WaitlistSignup;
+        } catch {
+          return null;
+        }
+      })
+      .filter((signup): signup is WaitlistSignup => Boolean(signup));
+  }
+
   const content = await readFile(getLogPath(), "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") {
       return "";
@@ -127,6 +178,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Bitte gib eine gültige E-Mail-Adresse ein." }, { status: 400 });
   }
 
+  if (process.env.VERCEL && !hasRemoteStore()) {
+    return NextResponse.json(
+      { message: "Waitlist storage is not configured yet." },
+      { status: 503 },
+    );
+  }
+
   const signups = await readSignups();
   const existingIndex = signups.findIndex((signup) => signup.email === email);
 
@@ -166,6 +224,16 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  if (process.env.VERCEL && !hasRemoteStore()) {
+    return NextResponse.json(
+      {
+        message: "Waitlist storage is not configured yet.",
+        requiredEnv: ["KV_REST_API_URL", "KV_REST_API_TOKEN"],
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   const signups = await readSignups();
 
   if (request.nextUrl.searchParams.get("format") === "csv") {
