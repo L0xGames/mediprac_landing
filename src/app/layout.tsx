@@ -13,11 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "mediprac - Quizduell fürs Medizinstudium",
+  title: "Medula - Quizduell fürs Medizinstudium",
   description:
-    "mediprac kommt bald: Quizduell fürs Medizinstudium. Sichere dir 3 Monate Premium kostenlos zum Launch.",
+    "Medula kommt bald: Quizduell fürs Medizinstudium. Sichere dir 3 Monate Premium kostenlos zum Launch.",
   icons: {
-    icon: "https://raw.githubusercontent.com/L0xGames/mediprac_landing/main/public/assets/favicon-32x32.png",
+    icon: "/assets/medula-favicon-32x32.png",
   },
 };
 

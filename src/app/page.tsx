@@ -5,11 +5,9 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import styles from "./page.module.css";
 
-const waitlistStorageKey = "mediprac_waitlist_email";
-const assetBaseUrl =
-  "https://raw.githubusercontent.com/L0xGames/mediprac_landing/main/public/assets";
-const logoUrl = `${assetBaseUrl}/mediprac-logo-horizontal.svg`;
-const appPreviewUrl = `${assetBaseUrl}/mediprac-topic-selection-current.png`;
+const waitlistStorageKey = "medula_waitlist_email";
+const logoUrl = "/assets/medula-logo-horizontal.svg";
+const appPreviewUrl = "/assets/medula-topic-selection-current.png";
 
 export default function Home() {
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -30,11 +28,11 @@ export default function Home() {
   return (
     <main className={styles.page}>
       <nav className={styles.nav} aria-label="Hauptnavigation">
-        <a className={styles.brand} href="#" aria-label="mediprac Startseite">
+        <a className={styles.brand} href="#" aria-label="Medula Startseite">
           <Image
             className={styles.brandLogo}
             src={logoUrl}
-            alt="mediprac"
+            alt="Medula"
             width={1800}
             height={520}
             priority
@@ -56,11 +54,11 @@ export default function Home() {
 
           <div
             className={styles.mobileAppPreview}
-            aria-label="mediprac App Vorschau"
+            aria-label="Medula App Vorschau"
           >
             <Image
               src={appPreviewUrl}
-              alt="mediprac App-Screen zur Auswahl des Fachgebiets in Runde 3"
+              alt="Medula App-Screen zur Auswahl des Fachgebiets in Runde 3"
               width={1179}
               height={2556}
               priority
@@ -102,13 +100,13 @@ export default function Home() {
           </section>
         </div>
 
-        <div className={styles.visual} aria-label="mediprac App Vorschau">
+        <div className={styles.visual} aria-label="Medula App Vorschau">
           <div className={styles.visualCard} aria-hidden="true" />
           <div className={styles.phone}>
             <Image
               className={styles.phoneScreen}
               src={appPreviewUrl}
-              alt="mediprac App-Screen zur Auswahl des Fachgebiets in Runde 3"
+              alt="Medula App-Screen zur Auswahl des Fachgebiets in Runde 3"
               width={1179}
               height={2556}
               priority
@@ -143,7 +141,7 @@ export default function Home() {
 
       <footer className={styles.launchStrip}>
         <span>
-          <strong>mediprac</strong> startet bald in Deutschland.
+          <strong>Medula</strong> startet bald in Deutschland.
         </span>
         <span>
           Gemacht für schnelle Wiederholung zwischen Uni, Station und
