@@ -171,7 +171,7 @@ export default function Home() {
               <strong className={styles.placementLine}>
                 Du bist auf Platz #{position ?? 248}.
               </strong>
-              <span>
+              <span className={styles.rewardLine}>
                 {rewardUnlocked
                   ? "Lifetime Premium ist freigeschaltet."
                   : `Lade ${referralGoal} Kommiliton:innen ein und sichere dir Lifetime Premium.`}
@@ -179,7 +179,7 @@ export default function Home() {
               {referralLink ? (
                 <div className={styles.referralBox}>
                   <div className={styles.referralProgress}>
-                    <span>
+                    <span className={styles.referralCountLine}>
                       {Math.min(referralCount, referralGoal)}/{referralGoal} erfolgreiche Einladungen
                     </span>
                     <span>{rewardUnlocked ? "Freigeschaltet" : "Offen"}</span>

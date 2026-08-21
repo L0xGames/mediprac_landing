@@ -191,6 +191,12 @@
   font-weight: 680;
 }
 
+.rewardLine {
+  display: block;
+  color: var(--green-dark);
+  font-weight: 680;
+}
+
 .referralBox {
   display: grid;
   gap: 8px;
@@ -203,6 +209,11 @@
   gap: 10px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.referralCountLine {
+  color: var(--green);
+  font-weight: 680;
 }
 
 .referralProgress span:last-child {
