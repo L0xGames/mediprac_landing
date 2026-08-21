@@ -5,23 +5,62 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import styles from "./page.module.css";
 
-const waitlistStorageKey = "medula_waitlist_email";
 const logoUrl = "/assets/medula-logo-horizontal.svg";
 const appPreviewUrl = "/assets/medula-topic-selection-current.png";
 
 export default function Home() {
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [position, setPosition] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const email = formData.get("email");
+    const email = String(formData.get("email") || "").trim();
 
-    if (email) {
-      window.localStorage.setItem(waitlistStorageKey, String(email));
+    if (!email) {
+      return;
+    }
+
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          website: formData.get("website"),
+          source: "landing",
+          path: window.location.pathname,
+          search: window.location.search,
+          referrer: document.referrer,
+          ref: params.get("ref"),
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as {
+        message?: string;
+        position?: number;
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.message || "Das hat gerade nicht geklappt.");
+      }
+
+      setPosition(payload?.position ?? null);
       setIsSubmitted(true);
       form.reset();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Das hat gerade nicht geklappt.");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -88,13 +127,25 @@ export default function Home() {
                 autoComplete="email"
                 required
               />
-              <button className={styles.submitButton} type="submit">
-                Early access sichern
+              <input
+                className={styles.honeypot}
+                name="website"
+                type="text"
+                tabIndex={-1}
+                autoComplete="off"
+              />
+              <button className={styles.submitButton} type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Wird gespeichert..." : "Early access sichern"}
               </button>
             </form>
             <p className={styles.microcopy}>Kostenloser Zugang beim Launch.</p>
+            {errorMessage ? (
+              <p className={styles.error} role="alert">
+                {errorMessage}
+              </p>
+            ) : null}
             <p className={styles.success} role="status">
-              <strong>Du bist auf Platz #248.</strong>
+              <strong>Du bist auf Platz #{position ?? 248}.</strong>
               Lade 3 Kommiliton:innen ein und sichere dir Lifetime Premium.
             </p>
           </section>

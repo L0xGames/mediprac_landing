@@ -140,6 +140,21 @@
     background 160ms ease;
 }
 
+.submitButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+}
+
+.honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .navPill:focus-visible,
 .emailInput:focus-visible,
 .submitButton:focus-visible {
@@ -172,6 +187,13 @@
   color: var(--ink);
   font-size: 17px;
   font-weight: 680;
+}
+
+.error {
+  margin: 10px 7px 0;
+  color: #a52118;
+  font-size: 14px;
+  line-height: 1.38;
 }
 
 .signupCard.isSent .success {
