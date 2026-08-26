@@ -265,6 +265,430 @@ function buildCsv(signups: WaitlistSignup[]) {
   return [headers.join(","), ...rows].join("\n");
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Berlin",
+  }).format(date);
+}
+
+function buildWaitlistHtml(signups: WaitlistSignup[], request: NextRequest) {
+  const total = signups.length;
+  const today = new Date().toISOString().slice(0, 10);
+  const signupsToday = signups.filter((signup) => signup.day === today).length;
+  const rewardsUnlocked = signups.filter((signup) => signup.rewardUnlocked).length;
+  const referralInvites = signups.reduce((sum, signup) => sum + (signup.referralCount || 0), 0);
+  const latestSignups = signups.slice().reverse();
+  const csvUrl = new URL(request.nextUrl);
+  csvUrl.searchParams.set("format", "csv");
+
+  const rows = latestSignups
+    .map(
+      (signup) => `
+        <tr>
+          <td class="rank">#${escapeHtml(signup.position)}</td>
+          <td>
+            <span class="email">${escapeHtml(signup.email)}</span>
+            ${
+              signup.rewardUnlocked
+                ? '<span class="status success">Lifetime freigeschaltet</span>'
+                : '<span class="status">Warteliste</span>'
+            }
+          </td>
+          <td>${escapeHtml(formatDateTime(signup.createdAt))}</td>
+          <td>${escapeHtml(signup.referralCode)}</td>
+          <td>${escapeHtml(signup.referralCount)}</td>
+          <td>${escapeHtml(signup.referredBy || "-")}</td>
+        </tr>`,
+    )
+    .join("");
+
+  return `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Medula Warteliste</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f8fb;
+        --ink: #172026;
+        --muted: #65727f;
+        --line: #dde5ec;
+        --surface: #ffffff;
+        --brand: #117c7c;
+        --brand-dark: #075e60;
+        --soft: #eaf7f5;
+        --shadow: 0 18px 55px rgba(24, 44, 58, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 12% 12%, rgba(17, 124, 124, 0.15), transparent 30%),
+          linear-gradient(135deg, #f9fbfc 0%, var(--bg) 46%, #eef3f7 100%);
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 28px;
+        align-items: stretch;
+        margin-bottom: 24px;
+      }
+
+      .headline,
+      .counter,
+      .panel,
+      .table-shell {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(221, 229, 236, 0.95);
+        box-shadow: var(--shadow);
+      }
+
+      .headline {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 280px;
+        padding: 30px;
+        border-radius: 22px;
+      }
+
+      .eyebrow {
+        margin: 0 0 18px;
+        color: var(--brand-dark);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin: 0;
+        font-size: clamp(38px, 7vw, 86px);
+        line-height: 0.95;
+        letter-spacing: 0;
+      }
+
+      .subline {
+        max-width: 690px;
+        margin: 24px 0 0;
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1.55;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
+        padding: 0 18px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--ink);
+        font-weight: 800;
+        text-decoration: none;
+        background: var(--surface);
+      }
+
+      .button.primary {
+        border-color: var(--brand);
+        color: #ffffff;
+        background: var(--brand);
+      }
+
+      .counter {
+        display: grid;
+        min-width: min(380px, 100%);
+        padding: 30px;
+        border-radius: 22px;
+        background: linear-gradient(160deg, #ffffff 0%, #effaf8 100%);
+      }
+
+      .counter-label {
+        color: var(--muted);
+        font-size: 15px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .counter-number {
+        margin: auto 0;
+        color: var(--brand-dark);
+        font-size: clamp(86px, 14vw, 172px);
+        font-weight: 900;
+        line-height: 0.88;
+        letter-spacing: 0;
+      }
+
+      .counter-note {
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.45;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .panel {
+        padding: 22px;
+        border-radius: 16px;
+      }
+
+      .panel span {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .panel strong {
+        display: block;
+        margin-top: 10px;
+        font-size: 38px;
+        line-height: 1;
+      }
+
+      .table-shell {
+        overflow: hidden;
+        border-radius: 18px;
+      }
+
+      .table-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 22px 24px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .table-title {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .table-meta {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+
+      .table-wrap {
+        max-height: 68vh;
+        overflow: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        padding: 15px 18px;
+        text-align: left;
+        border-bottom: 1px solid #edf1f4;
+        white-space: nowrap;
+      }
+
+      th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        color: var(--muted);
+        background: #fbfcfd;
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      tr:hover td {
+        background: var(--soft);
+      }
+
+      .rank {
+        color: var(--brand-dark);
+        font-weight: 900;
+      }
+
+      .email {
+        display: block;
+        color: var(--ink);
+        font-weight: 800;
+      }
+
+      .status {
+        display: inline-flex;
+        margin-top: 6px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        color: var(--brand-dark);
+        background: var(--soft);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .status.success {
+        color: #8f2e25;
+        background: #fff0ec;
+      }
+
+      .empty {
+        padding: 56px 24px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      @media (max-width: 860px) {
+        main {
+          width: min(100% - 20px, 1180px);
+          padding: 10px 0 20px;
+        }
+
+        .hero,
+        .stats {
+          grid-template-columns: 1fr;
+        }
+
+        .headline,
+        .counter {
+          min-height: auto;
+          padding: 22px;
+          border-radius: 18px;
+        }
+
+        .counter-number {
+          margin: 22px 0;
+        }
+
+        .table-head {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        th,
+        td {
+          padding: 13px 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero" aria-labelledby="title">
+        <div class="headline">
+          <div>
+            <p class="eyebrow">Medula Warteliste</p>
+            <h1 id="title">Aktuelle Signups auf einen Blick.</h1>
+            <p class="subline">Live aus der Produktionsdatenbank. Die CSV-Version bleibt unverändert für Export und Weiterverarbeitung.</p>
+          </div>
+          <div class="actions">
+            <a class="button primary" href="${escapeHtml(csvUrl.toString())}">CSV herunterladen</a>
+            <a class="button" href="/">Landing Page öffnen</a>
+          </div>
+        </div>
+        <aside class="counter" aria-label="Gesamtzahl der Warteliste">
+          <span class="counter-label">Warteliste gesamt</span>
+          <strong class="counter-number">${escapeHtml(total.toLocaleString("de-DE"))}</strong>
+          <span class="counter-note">Personen haben sich aktuell für Early Access eingetragen.</span>
+        </aside>
+      </section>
+
+      <section class="stats" aria-label="Kennzahlen">
+        <div class="panel">
+          <span>Heute neu</span>
+          <strong>${escapeHtml(signupsToday.toLocaleString("de-DE"))}</strong>
+        </div>
+        <div class="panel">
+          <span>Referral Einladungen</span>
+          <strong>${escapeHtml(referralInvites.toLocaleString("de-DE"))}</strong>
+        </div>
+        <div class="panel">
+          <span>Lifetime freigeschaltet</span>
+          <strong>${escapeHtml(rewardsUnlocked.toLocaleString("de-DE"))}</strong>
+        </div>
+      </section>
+
+      <section class="table-shell" aria-labelledby="entries-title">
+        <div class="table-head">
+          <div>
+            <h2 class="table-title" id="entries-title">Einträge</h2>
+            <p class="table-meta">Neueste Signups zuerst</p>
+          </div>
+          <a class="button" href="${escapeHtml(csvUrl.toString())}">CSV</a>
+        </div>
+        ${
+          rows
+            ? `<div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Platz</th>
+                      <th>E-Mail</th>
+                      <th>Zeitpunkt</th>
+                      <th>Referral Code</th>
+                      <th>Refs</th>
+                      <th>Eingeladen durch</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </div>`
+            : '<div class="empty">Noch keine Wartelisten-Einträge vorhanden.</div>'
+        }
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
 export async function POST(request: NextRequest) {
   const body = await parseRequestBody(request);
 
@@ -389,7 +813,9 @@ export async function GET(request: NextRequest) {
     await writeSignups(signups);
   }
 
-  if (request.nextUrl.searchParams.get("format") === "csv") {
+  const format = request.nextUrl.searchParams.get("format");
+
+  if (format === "csv") {
     return new NextResponse(buildCsv(signups), {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
@@ -399,15 +825,24 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json(
-    {
-      total: signups.length,
-      signups: signups.slice().reverse(),
-    },
-    {
-      headers: {
-        "Cache-Control": "no-store",
+  if (format === "json") {
+    return NextResponse.json(
+      {
+        total: signups.length,
+        signups: signups.slice().reverse(),
       },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+
+  return new NextResponse(buildWaitlistHtml(signups, request), {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
     },
-  );
+  });
 }
