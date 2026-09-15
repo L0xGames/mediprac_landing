@@ -3,6 +3,7 @@
 import Image from "next/image";
 import type { FormEvent } from "react";
 import { useState } from "react";
+import { track } from "@vercel/analytics";
 import styles from "./page.module.css";
 
 const logoUrl = "/assets/medula-logo-horizontal.svg";
@@ -31,6 +32,7 @@ export default function Home() {
 
     setErrorMessage("");
     setIsSubmitting(true);
+    track("waitlist_submit_started");
 
     try {
       const params = new URLSearchParams(window.location.search);
@@ -71,7 +73,9 @@ export default function Home() {
       setHasCopiedReferralLink(false);
       setIsSubmitted(true);
       form.reset();
+      track("waitlist_joined", { referred: Boolean(params.get("ref")) });
     } catch (error) {
+      track("waitlist_submit_failed");
       setErrorMessage(error instanceof Error ? error.message : "Das hat gerade nicht geklappt.");
     } finally {
       setIsSubmitting(false);
@@ -107,30 +111,37 @@ export default function Home() {
 
       <section className={styles.hero} aria-labelledby="headline">
         <div className={styles.copy}>
+          <p className={styles.eyebrow}>Die Lern-App fürs Medizinstudium</p>
           <h1 id="headline">Quizduell fürs Medizinstudium</h1>
           <p className={styles.lead}>
-            Miss dich in kurzen Medizin-Duellen mit Kommiliton:innen aus ganz
-            Deutschland. Anatomie, Physio, Biochemie, Pharmakologie und
-            klinische Fälle - spielerisch wiederholen statt nur kreuzen.
+            Fordere Kommiliton:innen heraus und wiederhole Anatomie, Physio,
+            Pharma und klinische Fälle - spielerisch statt endlos zu kreuzen.
           </p>
 
-          <div
-            className={styles.mobileAppPreview}
-            aria-label="Medula App Vorschau"
-          >
-            <Image
-              src={appPreviewUrl}
-              alt="Medula App-Screen zur Auswahl des Fachgebiets in Runde 3"
-              width={1179}
-              height={2556}
-              priority
-            />
-          </div>
+          <section className={styles.mobileAppPreview} aria-label="So funktioniert Medula">
+            <div className={styles.mobilePhone}>
+              <Image
+                src={appPreviewUrl}
+                alt="Medula App-Screen zur Auswahl des Fachgebiets in Runde 3"
+                width={1179}
+                height={2556}
+                priority
+              />
+            </div>
+            <div className={styles.mobilePreviewCopy}>
+              <span>So lernst du mit Medula</span>
+              <strong>Fach wählen. Duell starten. Dranbleiben.</strong>
+              <p>Kurze Runden machen die Wiederholung zwischen Uni, Station und Klausurphase leichter.</p>
+              <div className={styles.mobileFeatureList} aria-label="Medula Vorteile">
+                <span>Für Vorklinik &amp; Klinik</span>
+                <span>Mit Kommiliton:innen duellieren</span>
+              </div>
+            </div>
+          </section>
 
-          <div className={styles.offerCallout} aria-label="Launch-Angebot">
-            <span>Launch-Angebot</span>
-            <strong>3 Monate Premium kostenlos</strong>
-          </div>
+          <p className={styles.launchNote}>
+            Wartelisten-Vorteil: <strong>3 Monate Premium kostenlos zum Launch.</strong>
+          </p>
 
           <section
             className={`${styles.signupCard} ${isSubmitted ? styles.isSent : ""}`}
@@ -158,10 +169,12 @@ export default function Home() {
                 autoComplete="off"
               />
               <button className={styles.submitButton} type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Wird gespeichert..." : "Early access sichern"}
+                {isSubmitting ? "Wird gespeichert..." : "Kostenlos vormerken"}
               </button>
             </form>
-            <p className={styles.microcopy}>Kostenloser Zugang beim Launch.</p>
+            <p className={styles.microcopy}>
+              Keine Zahlung. Dein Wartelisten-Bonus ist beim Launch für dich reserviert.
+            </p>
             {errorMessage ? (
               <p className={styles.error} role="alert">
                 {errorMessage}
@@ -169,7 +182,7 @@ export default function Home() {
             ) : null}
             <div className={styles.success} role="status">
               <strong className={styles.placementLine}>
-                Du bist auf Platz #{position ?? 248}.
+                {position ? `Du bist auf Platz #${position}.` : "Du bist auf der Warteliste."}
               </strong>
               <span className={styles.rewardLine}>
                 {rewardUnlocked
@@ -203,6 +216,11 @@ export default function Home() {
               ) : null}
             </div>
           </section>
+
+          <div className={styles.trustRow} aria-label="Deine Vorteile">
+            <span>✓ Kostenlos vormerken</span>
+            <span>✓ 3 Monate Premium zum Launch</span>
+          </div>
         </div>
 
         <div className={styles.visual} aria-label="Medula App Vorschau">
