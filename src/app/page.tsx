@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { track } from "@vercel/analytics";
 import styles from "./page.module.css";
 
@@ -10,6 +10,8 @@ const logoUrl = "/assets/medula-logo-horizontal.svg";
 const appPreviewUrl = "/assets/medula-topic-selection-current.png";
 
 export default function Home() {
+  const signupCardRef = useRef<HTMLElement>(null);
+  const hasTrackedEmailFocus = useRef(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [position, setPosition] = useState<number | null>(null);
@@ -19,6 +21,36 @@ export default function Home() {
   const [rewardUnlocked, setRewardUnlocked] = useState(false);
   const [hasCopiedReferralLink, setHasCopiedReferralLink] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    const signupCard = signupCardRef.current;
+
+    if (!signupCard || !("IntersectionObserver" in window)) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          track("waitlist_form_viewed");
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 },
+    );
+
+    observer.observe(signupCard);
+    return () => observer.disconnect();
+  }, []);
+
+  function handleEmailFocus() {
+    if (hasTrackedEmailFocus.current) {
+      return;
+    }
+
+    hasTrackedEmailFocus.current = true;
+    track("waitlist_email_focused");
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -87,8 +119,39 @@ export default function Home() {
       return;
     }
 
-    await navigator.clipboard.writeText(referralLink);
-    setHasCopiedReferralLink(true);
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      setHasCopiedReferralLink(true);
+      track("waitlist_referral_link_copied");
+    } catch {
+      setErrorMessage("Der Link konnte nicht kopiert werden. Bitte versuche es noch einmal.");
+    }
+  }
+
+  async function handleShareReferralLink() {
+    if (!referralLink) {
+      return;
+    }
+
+    track("waitlist_referral_share_started");
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Medula – Quizduell fürs Medizinstudium",
+          text: "Komm auf die Medula-Warteliste und sichere dir 3 Monate Premium zum Launch.",
+          url: referralLink,
+        });
+        track("waitlist_referral_shared");
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+      }
+    }
+
+    await handleCopyReferralLink();
   }
 
   return (
@@ -104,49 +167,29 @@ export default function Home() {
             priority
           />
         </a>
-        <a className={styles.navPill} href="#warteliste">
+        <a className={styles.navPill} href="#warteliste" onClick={() => track("waitlist_nav_cta_clicked")}>
           Early access sichern
         </a>
       </nav>
 
       <section className={styles.hero} aria-labelledby="headline">
         <div className={styles.copy}>
-          <p className={styles.eyebrow}>Die Lern-App fürs Medizinstudium</p>
-          <h1 id="headline">Quizduell fürs Medizinstudium</h1>
+          <p className={styles.eyebrow}>Medizin lernen, ohne endlos zu kreuzen</p>
+          <h1 id="headline">Wissen, das für deine Klausuren hängen bleibt.</h1>
           <p className={styles.lead}>
-            Fordere Kommiliton:innen heraus und wiederhole Anatomie, Physio,
-            Pharma und klinische Fälle - spielerisch statt endlos zu kreuzen.
+            Kurze Quizduelle zu Anatomie, Physio, Pharma und klinischen Fällen
+            machen Wiederholung zur Routine – allein oder mit Kommiliton:innen.
           </p>
 
-          <section className={styles.mobileAppPreview} aria-label="So funktioniert Medula">
-            <div className={styles.mobilePhone}>
-              <Image
-                src={appPreviewUrl}
-                alt="Medula App-Screen zur Auswahl des Fachgebiets in Runde 3"
-                width={1179}
-                height={2556}
-                priority
-              />
-            </div>
-            <div className={styles.mobilePreviewCopy}>
-              <span>So lernst du mit Medula</span>
-              <strong>Fach wählen. Duell starten. Dranbleiben.</strong>
-              <p>Kurze Runden machen die Wiederholung zwischen Uni, Station und Klausurphase leichter.</p>
-              <div className={styles.mobileFeatureList} aria-label="Medula Vorteile">
-                <span>Für Vorklinik &amp; Klinik</span>
-                <span>Mit Kommiliton:innen duellieren</span>
-              </div>
-            </div>
-          </section>
-
           <p className={styles.launchNote}>
-            Wartelisten-Vorteil: <strong>3 Monate Premium kostenlos zum Launch.</strong>
+            Dein Wartelisten-Vorteil: <strong>3 Monate Premium kostenlos zum Launch.</strong>
           </p>
 
           <section
             className={`${styles.signupCard} ${isSubmitted ? styles.isSent : ""}`}
             id="warteliste"
             aria-label="Warteliste"
+            ref={signupCardRef}
           >
             <form className={styles.signupForm} onSubmit={handleSubmit}>
               <label className={styles.srOnly} htmlFor="email">
@@ -159,6 +202,10 @@ export default function Home() {
                 type="email"
                 placeholder="Deine E-Mail-Adresse"
                 autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                onFocus={handleEmailFocus}
                 required
               />
               <input
@@ -169,11 +216,11 @@ export default function Home() {
                 autoComplete="off"
               />
               <button className={styles.submitButton} type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Wird gespeichert..." : "Kostenlos vormerken"}
+                {isSubmitting ? "Wird gespeichert..." : "3 Monate Premium sichern"}
               </button>
             </form>
             <p className={styles.microcopy}>
-              Keine Zahlung. Dein Wartelisten-Bonus ist beim Launch für dich reserviert.
+              Kostenlos und unverbindlich. Keine Zahlung nötig.
             </p>
             {errorMessage ? (
               <p className={styles.error} role="alert">
@@ -212,15 +259,38 @@ export default function Home() {
                       {hasCopiedReferralLink ? "Kopiert" : "Kopieren"}
                     </button>
                   </div>
+                  <button
+                    className={styles.shareButton}
+                    type="button"
+                    onClick={handleShareReferralLink}
+                  >
+                    Mit Kommiliton:innen teilen
+                  </button>
                 </div>
               ) : null}
             </div>
           </section>
 
-          <div className={styles.trustRow} aria-label="Deine Vorteile">
-            <span>✓ Kostenlos vormerken</span>
-            <span>✓ 3 Monate Premium zum Launch</span>
-          </div>
+          <section className={styles.mobileAppPreview} aria-label="So funktioniert Medula">
+            <div className={styles.mobilePhone}>
+              <Image
+                src={appPreviewUrl}
+                alt="Medula App-Screen zur Auswahl des Fachgebiets in Runde 3"
+                width={1179}
+                height={2556}
+                priority
+              />
+            </div>
+            <div className={styles.mobilePreviewCopy}>
+              <span>So lernst du mit Medula</span>
+              <strong>Fach wählen. Duell starten. Dranbleiben.</strong>
+              <p>Kurze Runden machen die Wiederholung zwischen Uni, Station und Klausurphase leichter.</p>
+              <div className={styles.mobileFeatureList} aria-label="Medula Vorteile">
+                <span>Für Vorklinik &amp; Klinik</span>
+                <span>Mit Kommiliton:innen duellieren</span>
+              </div>
+            </div>
+          </section>
         </div>
 
         <div className={styles.visual} aria-label="Medula App Vorschau">

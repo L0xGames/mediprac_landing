@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Medula - Quizduell fürs Medizinstudium",
+  title: "Medula – Quizduelle fürs Medizinstudium",
   description:
-    "Medula kommt bald: Quizduell fürs Medizinstudium. Sichere dir 3 Monate Premium kostenlos zum Launch.",
+    "Kurze Quizduelle für Anatomie, Physio, Pharma und klinische Fälle. Sichere dir 3 Monate Medula Premium kostenlos zum Launch.",
   icons: {
     icon: "/assets/medula-favicon-32x32.png",
   },
