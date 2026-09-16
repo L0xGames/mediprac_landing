@@ -4,13 +4,17 @@ import path from "path";
 const REMOTE_REDIS_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
 const REMOTE_REDIS_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
 const VISIT_KEY_PREFIX = "medula_quiz:visit:";
-const VISIT_INDEX_KEY = "medula_quiz:visits";
+const MAX_VISITS_TO_LIST = 200;
+// Keep a lightweight list of visit IDs. The production store already uses Redis
+// lists for the waitlist; using the same primitive makes the visit overview work
+// consistently there as well.
+const VISIT_INDEX_KEY = "medula_quiz:visit-index";
+const MAX_INDEX_ENTRIES = MAX_VISITS_TO_LIST * 16;
 const DATA_DIR = process.env.VERCEL
   ? path.join("/tmp", "medula-quiz-visits")
   : path.join(/* turbopackIgnore: true */ process.cwd(), ".data");
 const DATA_PATH = path.join(DATA_DIR, "quiz-visits.json");
 const VISIT_ID_PATTERN = /^[a-zA-Z0-9_-]{16,80}$/;
-const MAX_VISITS_TO_LIST = 200;
 
 const VALID_PHASES = new Set(["Vorklinik", "Physikum", "Klinik", "M2 / M3", "Neugierig"]);
 const VALID_SUBJECTS = new Set(["Anatomie", "Physiologie", "Biochemie", "Pharmakologie", "Klinische Fälle"]);
@@ -87,6 +91,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (isRecord(value)) return value;
+
+  // Some Redis REST clients serialize HGETALL as alternating field/value pairs.
+  // Accept both response shapes so stored visits remain visible across providers.
+  if (Array.isArray(value) && value.length % 2 === 0) {
+    const record: Record<string, unknown> = {};
+    for (let index = 0; index < value.length; index += 2) {
+      const key = value[index];
+      if (typeof key !== "string") return null;
+      record[key] = value[index + 1];
+    }
+    return record;
+  }
+
+  return null;
+}
+
 function isTimestamp(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(new Date(value).getTime());
 }
@@ -104,32 +126,33 @@ export function isQuizVisitEvent(value: unknown): value is QuizVisitEvent {
 }
 
 function normalizeQuizVisit(value: unknown): QuizVisit | null {
-  if (!isRecord(value) || !isValidVisitId(value.id) || !isTimestamp(value.createdAt)) {
+  const record = toRecord(value);
+  if (!record || !isValidVisitId(record.id) || !isTimestamp(record.createdAt)) {
     return null;
   }
 
-  const pageViewedAt = toOptionalTimestamp(value.pageViewedAt) || value.createdAt;
-  const score = typeof value.score === "string" ? Number(value.score) : value.score;
+  const pageViewedAt = toOptionalTimestamp(record.pageViewedAt) || record.createdAt;
+  const score = typeof record.score === "string" ? Number(record.score) : record.score;
 
   return {
-    id: value.id,
-    createdAt: value.createdAt,
-    lastEventAt: toOptionalTimestamp(value.lastEventAt) || value.createdAt,
+    id: record.id,
+    createdAt: record.createdAt,
+    lastEventAt: toOptionalTimestamp(record.lastEventAt) || record.createdAt,
     pageViewedAt,
-    necessarySelectedAt: toOptionalTimestamp(value.necessarySelectedAt),
-    analyticsSelectedAt: toOptionalTimestamp(value.analyticsSelectedAt),
-    quizStartedAt: toOptionalTimestamp(value.quizStartedAt),
-    phaseSelectedAt: toOptionalTimestamp(value.phaseSelectedAt),
-    subjectSelectedAt: toOptionalTimestamp(value.subjectSelectedAt),
-    question1AnsweredAt: toOptionalTimestamp(value.question1AnsweredAt),
-    question2AnsweredAt: toOptionalTimestamp(value.question2AnsweredAt),
-    question3AnsweredAt: toOptionalTimestamp(value.question3AnsweredAt),
-    resultViewedAt: toOptionalTimestamp(value.resultViewedAt),
-    emailStartedAt: toOptionalTimestamp(value.emailStartedAt),
-    emailSubmittedAt: toOptionalTimestamp(value.emailSubmittedAt),
-    consentChoice: value.consentChoice === "necessary" || value.consentChoice === "analytics" ? value.consentChoice : undefined,
-    phase: typeof value.phase === "string" && VALID_PHASES.has(value.phase) ? value.phase : undefined,
-    subject: typeof value.subject === "string" && VALID_SUBJECTS.has(value.subject) ? value.subject : undefined,
+    necessarySelectedAt: toOptionalTimestamp(record.necessarySelectedAt),
+    analyticsSelectedAt: toOptionalTimestamp(record.analyticsSelectedAt),
+    quizStartedAt: toOptionalTimestamp(record.quizStartedAt),
+    phaseSelectedAt: toOptionalTimestamp(record.phaseSelectedAt),
+    subjectSelectedAt: toOptionalTimestamp(record.subjectSelectedAt),
+    question1AnsweredAt: toOptionalTimestamp(record.question1AnsweredAt),
+    question2AnsweredAt: toOptionalTimestamp(record.question2AnsweredAt),
+    question3AnsweredAt: toOptionalTimestamp(record.question3AnsweredAt),
+    resultViewedAt: toOptionalTimestamp(record.resultViewedAt),
+    emailStartedAt: toOptionalTimestamp(record.emailStartedAt),
+    emailSubmittedAt: toOptionalTimestamp(record.emailSubmittedAt),
+    consentChoice: record.consentChoice === "necessary" || record.consentChoice === "analytics" ? record.consentChoice : undefined,
+    phase: typeof record.phase === "string" && VALID_PHASES.has(record.phase) ? record.phase : undefined,
+    subject: typeof record.subject === "string" && VALID_SUBJECTS.has(record.subject) ? record.subject : undefined,
     score: typeof score === "number" && Number.isInteger(score) && score >= 0 && score <= 3 ? score : undefined,
   };
 }
@@ -238,7 +261,8 @@ export async function recordQuizVisit(update: QuizVisitUpdate) {
       runRedisCommand(["HSETNX", key, "pageViewedAt", now]),
       runRedisCommand(["HSETNX", key, eventField, now]),
       runRedisCommand(["HSET", key, ...values]),
-      runRedisCommand(["ZADD", VISIT_INDEX_KEY, Date.now(), update.visitId]),
+      runRedisCommand(["LPUSH", VISIT_INDEX_KEY, update.visitId]),
+      runRedisCommand(["LTRIM", VISIT_INDEX_KEY, 0, MAX_INDEX_ENTRIES - 1]),
     ]);
     return;
   }
@@ -256,9 +280,10 @@ export async function listQuizVisits(limit = MAX_VISITS_TO_LIST) {
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), MAX_VISITS_TO_LIST));
 
   if (hasRemoteStore()) {
-    const ids = await runRedisCommand<string[]>(["ZREVRANGE", VISIT_INDEX_KEY, 0, safeLimit - 1]);
+    const indexedIds = await runRedisCommand<string[]>(["LRANGE", VISIT_INDEX_KEY, 0, MAX_INDEX_ENTRIES - 1]);
+    const ids = Array.from(new Set((indexedIds || []).filter(isValidVisitId))).slice(0, safeLimit);
     const visits = await Promise.all(
-      (ids || []).map(async (id) => {
+      ids.map(async (id) => {
         const visit = await runRedisCommand<Record<string, unknown>>(["HGETALL", `${VISIT_KEY_PREFIX}${id}`]);
         return normalizeQuizVisit(visit);
       }),
