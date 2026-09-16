@@ -139,14 +139,6 @@
 
 .footer { padding-top: 16px; color: var(--muted); text-align: center; font-size: 12px; }
 .footer strong { color: #405349; }
-.footer button { margin: 8px auto 0; border: 0; padding: 4px 6px; color: inherit; cursor: pointer; background: transparent; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
-.footer button:hover { color: var(--green); }
-.consentBanner { position: fixed; z-index: 20; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); left: 12px; max-width: 520px; margin: 0 auto; border: 1px solid var(--line); border-radius: 22px; padding: 17px; color: var(--ink); background: rgba(255, 253, 249, 0.98); box-shadow: 0 18px 50px rgba(20, 31, 23, 0.24); }
-.consentBanner h2 { margin: 0 0 7px; font-size: 17px; font-weight: 790; letter-spacing: -0.02em; }
-.consentBanner p { margin: 0; color: #526158; font-size: 13px; line-height: 1.42; }
-.consentBanner > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
-.consentBanner button { min-height: 48px; border: 1px solid rgba(12, 74, 50, 0.44); border-radius: 14px; padding: 10px 9px; color: var(--green-deep); cursor: pointer; background: var(--white); font-size: 13px; font-weight: 780; line-height: 1.15; }
-.consentBanner button:hover { border-color: var(--green); background: var(--green-light); }
 
 @keyframes appear { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 @media (min-width: 700px) { .shell { width: min(100% - 48px, 860px); } .screen { max-width: 690px; margin: 0 auto; } .centerScreen { min-height: 710px; } .heroCard { max-width: 460px; } .choiceGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .subjectGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .subjectGrid .choice { min-height: 130px; } .answers { grid-template-columns: repeat(2, minmax(0, 1fr)); } .quizNext { max-width: 330px; } }

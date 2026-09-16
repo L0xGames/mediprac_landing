@@ -8,7 +8,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createTikTokEventId,
   grantTikTokConsentAndLoadPixel,
-  revokeTikTokConsent,
   trackTikTokCompleteRegistration,
 } from "@/lib/tiktok-browser";
 import styles from "./page.module.css";
@@ -27,7 +26,6 @@ const quizQuestionCount = 1;
 const logoUrl = "/assets/medula-logo-horizontal.svg";
 const appPreviewUrl = "/assets/medula-dashboard.png";
 const consentStorageKey = "medula_analytics_consent";
-const consentDays = 180;
 const sessionHeartbeatIntervalMs = 10_000;
 
 const subjectOptions: { label: Subject; icon: string }[] = [
@@ -75,10 +73,6 @@ function readConsent(): Consent | null {
     }
     return stored.value;
   } catch { return null; }
-}
-
-function storeConsent(value: Consent) {
-  window.localStorage.setItem(consentStorageKey, JSON.stringify({ value, expiresAt: Date.now() + consentDays * 24 * 60 * 60 * 1000 }));
 }
 
 function getAcquisitionProperties() {
@@ -144,13 +138,12 @@ export default function Home() {
   const analytics = useRef({ landingTracked: false, distinctId: "" });
   const quizVisit = useRef({ id: "", recordedEvents: new Set<QuizVisitEvent>() });
   const quizVisitTiming = useRef({ startedAt: 0, activeStartedAt: 0, completedActiveDurationMs: 0 });
+  const continueButtonRef = useRef<HTMLButtonElement>(null);
   const acquisitionProperties = useMemo(() => getAcquisitionProperties(), []);
   const [screen, setScreen] = useState<Screen>("intro");
   const [subject, setSubject] = useState<Subject | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
-  const [consentVisible, setConsentVisible] = useState(false);
-  const [startQuizAfterConsent, setStartQuizAfterConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -291,36 +284,17 @@ export default function Home() {
   const hasAnswered = selectedAnswer !== undefined;
   const resultCopy = score === quizQuestionCount ? "Starker Start. Mit kurzen Duellen bleibt dein Wissen auch unter Prüfungsdruck abrufbar." : "Jede Antwort zeigt dir, wo eine kurze Wiederholung am meisten bringt. Genau dafür ist Medula da.";
 
+  useEffect(() => {
+    if (screen !== "quiz" || !hasAnswered) return;
+    const frame = window.requestAnimationFrame(() => continueButtonRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [hasAnswered, screen]);
+
   function showScreen(next: Screen) { setScreen(next); window.scrollTo({ top: 0, behavior: "smooth" }); }
   function startQuiz() {
     recordQuizVisit("quiz_started");
     track("quiz_started");
     showScreen("subject");
-  }
-  function requestQuizStart() {
-    if (!readConsent()) {
-      setStartQuizAfterConsent(true);
-      setConsentVisible(true);
-      return;
-    }
-    startQuiz();
-  }
-  function chooseConsent(value: Consent) {
-    const resumeQuiz = startQuizAfterConsent;
-    storeConsent(value);
-    setConsentVisible(false);
-    setStartQuizAfterConsent(false);
-    if (value === "granted") {
-      recordQuizVisit("analytics_selected");
-      grantTikTokConsentAndLoadPixel();
-      track("analytics_consent_granted");
-      trackLanding();
-    } else {
-      recordQuizVisit("necessary_selected");
-      revokeTikTokConsent();
-      analytics.current = { landingTracked: false, distinctId: "" };
-    }
-    if (resumeQuiz) startQuiz();
   }
   function chooseSubject(nextSubject: Subject) { setSubject(nextSubject); setQuestionIndex(0); setSelectedAnswers([]); setIsSubmitted(false); setErrorMessage(""); recordQuizVisit("subject_selected", { subject: nextSubject }); track("subject_selected", { subject: nextSubject }); showScreen("quiz"); }
   function chooseAnswer(answerIndex: number) {
@@ -379,16 +353,15 @@ export default function Home() {
     <div className={styles.shell}>
       <nav className={styles.nav} aria-label="Medula Navigation"><Image className={styles.brandLogo} src={logoUrl} alt="Medula" width={1800} height={520} priority /></nav>
       <main className={styles.main} aria-live="polite">
-        {screen === "intro" ? <section className={`${styles.screen} ${styles.centerScreen}`} aria-labelledby="intro-title"><h1 id="intro-title">Teste dein Medizinwissen.</h1><p className={styles.lead}>Wähle dein Fach, beantworte eine Frage und erhalte sofort eine kurze Erklärung.</p><div className={styles.heroCard} aria-hidden="true"><div className={styles.heroCardTop}><span>ANATOMIE</span><span>1 / 1</span></div><div className={styles.heroCardQuestion}>Welche Struktur verläuft durch das Foramen ovale?</div><div className={styles.heroCardOptions}><span>A</span><span>B</span><span>C</span><span>D</span></div></div><button className={styles.primaryButton} type="button" onClick={requestQuizStart}>Kurzcheck starten</button><div className={styles.trustRow}><div className={styles.avatars} aria-hidden="true"><img className={styles.avatar} src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&h=160&q=80" alt="" /><img className={styles.avatar} src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&h=160&q=80" alt="" /><img className={styles.avatar} src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&h=160&q=80" alt="" /></div><span>Für Medizinstudierende in Deutschland</span></div></section> : null}
+        {screen === "intro" ? <section className={`${styles.screen} ${styles.centerScreen}`} aria-labelledby="intro-title"><h1 id="intro-title">Teste dein Medizinwissen.</h1><p className={styles.lead}>Wähle dein Fach, beantworte eine Frage und erhalte sofort eine kurze Erklärung.</p><div className={styles.heroCard} aria-hidden="true"><div className={styles.heroCardTop}><span>ANATOMIE</span><span>1 / 1</span></div><div className={styles.heroCardQuestion}>Welche Struktur verläuft durch das Foramen ovale?</div><div className={styles.heroCardOptions}><span>A</span><span>B</span><span>C</span><span>D</span></div></div><button className={styles.primaryButton} type="button" onClick={startQuiz}>Kurzcheck starten</button><div className={styles.trustRow}><div className={styles.avatars} aria-hidden="true"><img className={styles.avatar} src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&h=160&q=80" alt="" /><img className={styles.avatar} src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&h=160&q=80" alt="" /><img className={styles.avatar} src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&h=160&q=80" alt="" /></div><span>Für Medizinstudierende in Deutschland</span></div></section> : null}
 
         {screen === "subject" ? <section className={`${styles.screen} ${styles.centerScreen}`} aria-labelledby="subject-title"><p className={styles.eyebrow}>Dein Fach</p><h2 id="subject-title">Wähle dein Fach.</h2><p className={styles.lead}>Wir geben dir eine passende Frage mit kurzer Erklärung.</p><div className={`${styles.choiceGrid} ${styles.subjectGrid}`} role="group" aria-label="Fach auswählen">{subjectOptions.map((option) => <button className={styles.choice} type="button" key={option.label} onClick={() => chooseSubject(option.label)}><span className={styles.choiceIcon}>{option.icon}</span><span className={styles.choiceLabel}>{option.label}</span></button>)}</div><button className={styles.backButton} type="button" onClick={() => showScreen("intro")}>← Zurück</button></section> : null}
 
-        {screen === "quiz" && activeQuestion && subject ? <section className={`${styles.screen} ${styles.quizScreen}`} aria-labelledby="quiz-question"><div className={styles.quizTop}><span className={styles.subjectPill}>{subject}</span><div className={styles.quizProgress} aria-label="Quizfortschritt"><span style={{ width: `${((questionIndex + 1) / quizQuestionCount) * 100}%` }} /></div><span className={styles.quizCount}>{questionIndex + 1} / {quizQuestionCount}</span></div><p className={styles.questionHint}>Dein {subject}-Kurzcheck</p><h2 className={styles.question} id="quiz-question">{activeQuestion.question}</h2><div className={styles.answers}>{activeQuestion.options.map((option, index) => { const isCorrect = hasAnswered && index === activeQuestion.correctIndex; const isIncorrect = hasAnswered && index === selectedAnswer && !isCorrect; return <button className={`${styles.answer} ${isCorrect ? styles.answerCorrect : ""} ${isIncorrect ? styles.answerIncorrect : ""}`} type="button" key={option} disabled={hasAnswered} onClick={() => chooseAnswer(index)}><span className={styles.answerLetter}>{String.fromCharCode(65 + index)}</span><span>{option}</span></button>; })}</div>{hasAnswered ? <div className={styles.feedback}><p>{selectedAnswer === activeQuestion.correctIndex ? "Richtig." : `Fast – richtig ist: ${activeQuestion.options[activeQuestion.correctIndex]}.`}</p><span>{activeQuestion.explanation}</span></div> : null}{hasAnswered ? <button className={`${styles.primaryButton} ${styles.quizNext}`} type="button" onClick={nextQuestion}>Zu deinem Ergebnis</button> : null}<button className={styles.backButton} type="button" onClick={() => showScreen("subject")}>← Fach ändern</button></section> : null}
+        {screen === "quiz" && activeQuestion && subject ? <section className={`${styles.screen} ${styles.quizScreen}`} aria-labelledby="quiz-question"><div className={styles.quizTop}><span className={styles.subjectPill}>{subject}</span><div className={styles.quizProgress} aria-label="Quizfortschritt"><span style={{ width: `${((questionIndex + 1) / quizQuestionCount) * 100}%` }} /></div><span className={styles.quizCount}>{questionIndex + 1} / {quizQuestionCount}</span></div><p className={styles.questionHint}>Dein {subject}-Kurzcheck</p><h2 className={styles.question} id="quiz-question">{activeQuestion.question}</h2><div className={styles.answers}>{activeQuestion.options.map((option, index) => { const isCorrect = hasAnswered && index === activeQuestion.correctIndex; const isIncorrect = hasAnswered && index === selectedAnswer && !isCorrect; return <button className={`${styles.answer} ${isCorrect ? styles.answerCorrect : ""} ${isIncorrect ? styles.answerIncorrect : ""}`} type="button" key={option} disabled={hasAnswered} onClick={() => chooseAnswer(index)}><span className={styles.answerLetter}>{String.fromCharCode(65 + index)}</span><span>{option}</span></button>; })}</div>{hasAnswered ? <div className={styles.feedback}><p>{selectedAnswer === activeQuestion.correctIndex ? "Richtig." : `Fast – richtig ist: ${activeQuestion.options[activeQuestion.correctIndex]}.`}</p><span>{activeQuestion.explanation}</span></div> : null}{hasAnswered ? <button ref={continueButtonRef} className={`${styles.primaryButton} ${styles.quizNext}`} type="button" onClick={nextQuestion}>Zu deinem Ergebnis</button> : null}<button className={styles.backButton} type="button" onClick={() => showScreen("subject")}>← Fach ändern</button></section> : null}
 
         {screen === "result" && subject ? <section className={`${styles.screen} ${styles.centerScreen}`} aria-labelledby="result-title"><p className={styles.eyebrow}>Dein Ergebnis</p><div className={styles.resultHeader}><div className={styles.scoreRing}><div><strong>{score}/{quizQuestionCount}</strong><span>RICHTIG</span></div></div><h2 className={styles.resultTitle} id="result-title">Dein {subject}-Kurzcheck</h2></div><p className={styles.resultCopy}>{resultCopy}</p><div className={styles.resultList}>{questionBank[subject].slice(0, quizQuestionCount).map((question, index) => { const correct = selectedAnswers[index] === question.correctIndex; return <div className={`${styles.resultRow} ${correct ? styles.resultRowCorrect : ""}`} key={question.topic}><span>{correct ? "✓" : "→"}</span><p>{question.topic}: {correct ? "sicher beantwortet" : "kurz wiederholen"}</p></div>; })}</div><div className={`${styles.resultOptin} ${isSubmitted ? styles.resultOptinSent : ""}`}>{isSubmitted ? <div className={styles.confirmation} role="status"><div className={styles.confirmationIcon}>✓</div><h2>{position ? `Du bist auf Platz #${position}.` : "Du bist auf der Liste."}</h2><p>{rewardUnlocked ? "Lifetime Premium ist freigeschaltet." : `Lade ${referralGoal} Kommiliton:innen ein und sichere dir Lifetime Premium.`}</p>{referralLink ? <><p className={styles.referralProgress}>{Math.min(referralCount, referralGoal)}/{referralGoal} erfolgreiche Einladungen</p><div className={styles.referralRow}><input value={referralLink} readOnly aria-label="Persönlicher Einladungslink" /><button type="button" onClick={copyReferralLink}>{hasCopiedReferralLink ? "Kopiert" : "Kopieren"}</button></div><button className={styles.shareButton} type="button" onClick={shareReferralLink}>Mit Kommiliton:innen teilen</button></> : null}</div> : <><div className={styles.optinHeader}><div><p className={styles.optinKicker}>Medula App</p><strong>Bereit für mehr als eine Frage?</strong><p>Sichere dir 3 Monate Medula Premium gratis zum Launch.</p></div><div className={styles.miniAppDevice}><Image src={appPreviewUrl} alt="Vorschau der Medula App" width={1179} height={2556} /></div></div><form onSubmit={handleWaitlistSubmit}><label className={styles.formLabel} htmlFor="email">E-Mail für den Launch</label><input className={styles.emailInput} id="email" name="email" type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="deine@email.de" required onChange={() => recordQuizVisit("email_started", { subject, score })} /><input className={styles.honeypot} name="website" type="text" tabIndex={-1} autoComplete="off" /><button className={`${styles.primaryButton} ${styles.optinButton}`} type="submit" disabled={isSubmitting}>{isSubmitting ? "Wird gespeichert..." : "3 Monate Premium sichern"}</button><p className={styles.formNote}>Wir schreiben dir zum Launch. Kein Spam.</p>{errorMessage ? <p className={styles.formError} role="alert">{errorMessage}</p> : null}</form></>}</div><button className={styles.backButton} type="button" onClick={() => showScreen("quiz")}>← Antwort ansehen</button></section> : null}
       </main>
-      <footer className={styles.footer}><strong>Medula</strong> · Schnelle Wiederholung zwischen Uni, Station und Klausurphase<br /><button type="button" onClick={() => { setStartQuizAfterConsent(false); setConsentVisible(true); }}>Datenschutz &amp; Tracking-Einstellungen</button></footer>
-      {consentVisible ? <aside className={styles.consentBanner} role="dialog" aria-modal="true" aria-labelledby="consent-title"><h2 id="consent-title">Kurzcheck ohne Werbetracking starten?</h2><p>Der Kurzcheck funktioniert auch ohne TikTok-Werbetracking. Wähle, ob wir die Wirksamkeit unserer Werbung messen dürfen. Du kannst deine Auswahl später ändern.</p><div><button type="button" onClick={() => chooseConsent("denied")}>Weiter ohne Werbetracking</button><button type="button" onClick={() => chooseConsent("granted")}>Werbetracking erlauben</button></div></aside> : null}
+      <footer className={styles.footer}><strong>Medula</strong> · Schnelle Wiederholung zwischen Uni, Station und Klausurphase</footer>
     </div>
   );
 }
