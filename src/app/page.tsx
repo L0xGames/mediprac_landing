@@ -5,6 +5,12 @@
 import Image from "next/image";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createTikTokEventId,
+  grantTikTokConsentAndLoadPixel,
+  revokeTikTokConsent,
+  trackTikTokCompleteRegistration,
+} from "@/lib/tiktok-browser";
 import styles from "./page.module.css";
 
 type Phase = "Vorklinik" | "Physikum" | "Klinik" | "M2 / M3" | "Neugierig";
@@ -12,14 +18,9 @@ type Subject = "Anatomie" | "Physiologie" | "Biochemie" | "Pharmakologie" | "Kli
 type Screen = "intro" | "phase" | "subject" | "quiz" | "result";
 type Consent = "granted" | "denied";
 type Question = { question: string; options: string[]; correctIndex: number; explanation: string; topic: string };
-type PostHogClient = { init: (token: string, config: Record<string, unknown>) => void; capture: (name: string, properties?: Record<string, unknown>) => void; opt_in_capturing: () => void; opt_out_capturing: () => void; reset: () => void };
-
-declare global { interface Window { posthog?: PostHogClient } }
 
 const logoUrl = "/assets/medula-logo-horizontal.svg";
 const appPreviewUrl = "/assets/medula-dashboard.png";
-const posthogToken = "phc_vXsxsCdYqPmkfgpe7ubtxnqGrknu5TxFqVGS2sqqdGLa";
-const posthogHost = "https://eu.i.posthog.com";
 const consentStorageKey = "medula_analytics_consent";
 const consentDays = 180;
 
@@ -94,7 +95,7 @@ function getAcquisitionProperties() {
 }
 
 export default function Home() {
-  const analytics = useRef({ loading: false, ready: false, landingTracked: false, queue: [] as { name: string; properties: Record<string, unknown> }[] });
+  const analytics = useRef({ landingTracked: false, distinctId: "" });
   const acquisitionProperties = useMemo(() => getAcquisitionProperties(), []);
   const [screen, setScreen] = useState<Screen>("intro");
   const [phase, setPhase] = useState<Phase | null>(null);
@@ -112,31 +113,22 @@ export default function Home() {
   const [rewardUnlocked, setRewardUnlocked] = useState(false);
   const [hasCopiedReferralLink, setHasCopiedReferralLink] = useState(false);
 
-  const startAnalytics = useCallback(() => {
-    if (readConsent() !== "granted" || analytics.current.loading || analytics.current.ready) return;
-    analytics.current.loading = true;
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = `${posthogHost.replace(".i.posthog.com", "-assets.i.posthog.com")}/static/array.js`;
-    script.onload = () => {
-      analytics.current.loading = false;
-      if (readConsent() !== "granted" || !window.posthog) return;
-      window.posthog.init(posthogToken, { api_host: posthogHost, defaults: "2026-05-30", autocapture: false, capture_pageview: false, capture_pageleave: false, disable_session_recording: true, opt_out_capturing_by_default: true, persistence: "localStorage" });
-      window.posthog.opt_in_capturing();
-      analytics.current.ready = true;
-      analytics.current.queue.splice(0).forEach(({ name, properties }) => window.posthog?.capture(name, properties));
-    };
-    script.onerror = () => { analytics.current.loading = false; analytics.current.queue = []; };
-    document.head.appendChild(script);
+  const getAnalyticsDistinctId = useCallback(() => {
+    if (analytics.current.distinctId) return analytics.current.distinctId;
+    const fallback = `quiz_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 14)}`;
+    analytics.current.distinctId = window.crypto?.randomUUID?.() || fallback;
+    return analytics.current.distinctId;
   }, []);
 
   const track = useCallback((name: string, properties: Record<string, unknown> = {}) => {
     if (readConsent() !== "granted") return;
-    const event = { name, properties: { ...acquisitionProperties, ...properties } };
-    if (analytics.current.ready && window.posthog) { window.posthog.capture(event.name, event.properties); return; }
-    analytics.current.queue.push(event);
-    startAnalytics();
-  }, [acquisitionProperties, startAnalytics]);
+    void fetch("/api/analytics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: name, distinctId: getAnalyticsDistinctId(), properties: { ...acquisitionProperties, ...properties } }),
+      keepalive: true,
+    }).catch(() => undefined);
+  }, [acquisitionProperties, getAnalyticsDistinctId]);
 
   const trackLanding = useCallback(() => {
     if (analytics.current.landingTracked || readConsent() !== "granted") return;
@@ -145,12 +137,12 @@ export default function Home() {
   }, [track]);
 
   useEffect(() => {
-    if (readConsent() === "granted") { startAnalytics(); trackLanding(); return; }
+    if (readConsent() === "granted") { grantTikTokConsentAndLoadPixel(); trackLanding(); return; }
     if (!readConsent()) {
       const timer = window.setTimeout(() => setConsentVisible(true), 0);
       return () => window.clearTimeout(timer);
     }
-  }, [startAnalytics, trackLanding]);
+  }, [trackLanding]);
 
   useEffect(() => {
     if (screen === "quiz" && phase && subject) track("question_viewed", { phase, subject, question_number: questionIndex + 1 });
@@ -173,8 +165,9 @@ export default function Home() {
   function showScreen(next: Screen) { setScreen(next); window.scrollTo({ top: 0, behavior: "smooth" }); }
   function chooseConsent(value: Consent) {
     storeConsent(value); setConsentVisible(false);
-    if (value === "granted") { startAnalytics(); track("analytics_consent_granted"); trackLanding(); return; }
-    analytics.current.queue = []; window.posthog?.opt_out_capturing(); window.posthog?.reset();
+    if (value === "granted") { grantTikTokConsentAndLoadPixel(); track("analytics_consent_granted"); trackLanding(); return; }
+    revokeTikTokConsent();
+    analytics.current = { landingTracked: false, distinctId: "" };
   }
   function choosePhase(nextPhase: Phase) { setPhase(nextPhase); track("study_phase_selected", { phase: nextPhase }); showScreen("subject"); }
   function chooseSubject(nextSubject: Subject) { setSubject(nextSubject); setQuestionIndex(0); setSelectedAnswers([]); setIsSubmitted(false); setErrorMessage(""); track("subject_selected", { phase, subject: nextSubject }); showScreen("quiz"); }
@@ -196,15 +189,16 @@ export default function Home() {
     const formData = new FormData(form);
     const email = String(formData.get("email") || "").trim();
     if (!email) return;
+    const tiktokEventId = readConsent() === "granted" ? createTikTokEventId() : undefined;
     setErrorMessage(""); setIsSubmitting(true);
     track("waitlist_submit_started", { phase, subject, score, placement: "result_inline" });
     try {
       const parameters = new URLSearchParams(window.location.search);
-      const response = await fetch("/api/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, website: formData.get("website"), source: "quiz_result", path: window.location.pathname, search: window.location.search, referrer: document.referrer, ref: parameters.get("ref") }) });
-      const payload = (await response.json().catch(() => null)) as { message?: string; position?: number; referralLink?: string; referralCount?: number; referralGoal?: number; rewardUnlocked?: boolean } | null;
+      const response = await fetch("/api/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, website: formData.get("website"), source: "quiz_result", path: window.location.pathname, search: window.location.search, referrer: document.referrer, ref: parameters.get("ref"), phase, subject, score, analyticsDistinctId: readConsent() === "granted" ? getAnalyticsDistinctId() : undefined, tiktokEventId }) });
+      const payload = (await response.json().catch(() => null)) as { message?: string; duplicate?: boolean; position?: number; referralLink?: string; referralCount?: number; referralGoal?: number; rewardUnlocked?: boolean } | null;
       if (!response.ok) throw new Error(payload?.message || "Das hat gerade nicht geklappt.");
+      if (tiktokEventId && !payload?.duplicate) void trackTikTokCompleteRegistration(tiktokEventId, email);
       setPosition(payload?.position ?? null); setReferralLink(payload?.referralLink || ""); setReferralCount(payload?.referralCount ?? 0); setReferralGoal(payload?.referralGoal ?? 3); setRewardUnlocked(Boolean(payload?.rewardUnlocked)); setHasCopiedReferralLink(false); setIsSubmitted(true); form.reset();
-      track("waitlist_submitted", { phase, subject, score, placement: "result_inline", referred: Boolean(parameters.get("ref")) });
     } catch (error) {
       track("waitlist_submit_failed", { phase, subject, score, placement: "result_inline" });
       setErrorMessage(error instanceof Error ? error.message : "Das hat gerade nicht geklappt.");
@@ -240,7 +234,7 @@ export default function Home() {
         {screen === "result" && subject && phase ? <section className={`${styles.screen} ${styles.centerScreen}`} aria-labelledby="result-title"><p className={styles.eyebrow}>Dein Ergebnis</p><div className={styles.resultHeader}><div className={styles.scoreRing}><div><strong>{score}/3</strong><span>RICHTIG</span></div></div><h2 className={styles.resultTitle} id="result-title">Dein {subject}-Kurzcheck</h2></div><p className={styles.resultCopy}>{resultCopy}</p><div className={styles.resultList}>{questionBank[subject].map((question, index) => { const correct = selectedAnswers[index] === question.correctIndex; return <div className={`${styles.resultRow} ${correct ? styles.resultRowCorrect : ""}`} key={question.topic}><span>{correct ? "✓" : "→"}</span><p>{question.topic}: {correct ? "sicher beantwortet" : "kurz wiederholen"}</p></div>; })}</div><div className={`${styles.resultOptin} ${isSubmitted ? styles.resultOptinSent : ""}`}>{isSubmitted ? <div className={styles.confirmation} role="status"><div className={styles.confirmationIcon}>✓</div><h2>{position ? `Du bist auf Platz #${position}.` : "Du bist auf der Liste."}</h2><p>{rewardUnlocked ? "Lifetime Premium ist freigeschaltet." : `Lade ${referralGoal} Kommiliton:innen ein und sichere dir Lifetime Premium.`}</p>{referralLink ? <><p className={styles.referralProgress}>{Math.min(referralCount, referralGoal)}/{referralGoal} erfolgreiche Einladungen</p><div className={styles.referralRow}><input value={referralLink} readOnly aria-label="Persönlicher Einladungslink" /><button type="button" onClick={copyReferralLink}>{hasCopiedReferralLink ? "Kopiert" : "Kopieren"}</button></div><button className={styles.shareButton} type="button" onClick={shareReferralLink}>Mit Kommiliton:innen teilen</button></> : null}</div> : <><div className={styles.optinHeader}><div><p className={styles.optinKicker}>Medula App</p><strong>Lerne {subject} mit Medula.</strong><p>Kurze Duelle, klare Erklärungen. 3 Monate Premium gratis zum Launch.</p></div><div className={styles.miniAppDevice}><Image src={appPreviewUrl} alt="Vorschau der Medula App" width={1179} height={2556} /></div></div><form onSubmit={handleWaitlistSubmit}><label className={styles.formLabel} htmlFor="email">Deine E-Mail-Adresse</label><input className={styles.emailInput} id="email" name="email" type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="deine@email.de" required /><input className={styles.honeypot} name="website" type="text" tabIndex={-1} autoComplete="off" /><button className={`${styles.primaryButton} ${styles.optinButton}`} type="submit" disabled={isSubmitting}>{isSubmitting ? "Wird gespeichert..." : `App-Warteliste für ${subject}`}</button><p className={styles.formNote}>Wir schreiben dir zum Launch. Kein Spam.</p>{errorMessage ? <p className={styles.formError} role="alert">{errorMessage}</p> : null}</form></>}</div><button className={styles.backButton} type="button" onClick={() => showScreen("quiz")}>← Antworten ansehen</button></section> : null}
       </main>
       <footer className={styles.footer}><strong>Medula</strong> · Schnelle Wiederholung zwischen Uni, Station und Klausurphase<br /><button type="button" onClick={() => setConsentVisible(true)}>Datenschutz &amp; Tracking-Einstellungen</button></footer>
-      {consentVisible ? <aside className={styles.consentBanner} role="region" aria-labelledby="consent-title"><h2 id="consent-title">Deine Privatsphäre</h2><p>Mit deiner Zustimmung messen wir nur, wie der Kurzcheck genutzt wird. Dabei werden keine E-Mail-Adresse, Antworttexte oder Sitzungsaufzeichnungen an unser Analysetool gesendet. Du kannst deine Wahl jederzeit ändern.</p><div><button type="button" onClick={() => chooseConsent("denied")}>Nur notwendige</button><button type="button" onClick={() => chooseConsent("granted")}>Zustimmen</button></div></aside> : null}
+      {consentVisible ? <aside className={styles.consentBanner} role="region" aria-labelledby="consent-title"><h2 id="consent-title">Deine Privatsphäre</h2><p>Mit deiner Zustimmung messen wir die Nutzung des Kurzchecks und die Wirksamkeit unserer TikTok-Werbung. Bei einer erfolgreichen Anmeldung kann deine E-Mail-Adresse ausschließlich pseudonymisiert als kryptografischer Hash an TikTok übermittelt werden; wir senden weder Antworttexte noch Sitzungsaufzeichnungen. Du kannst deine Wahl jederzeit ändern.</p><div><button type="button" onClick={() => chooseConsent("denied")}>Nur notwendige</button><button type="button" onClick={() => chooseConsent("granted")}>Zustimmen</button></div></aside> : null}
     </div>
   );
 }

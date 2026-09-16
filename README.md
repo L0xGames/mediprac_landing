@@ -1,5 +1,17 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## TikTok Pixel and Events API
+
+The landing page uses TikTok Pixel code `DAKTULRC77UDHLL43EMG`. It loads only after a visitor accepts marketing measurement. A new waitlist signup then sends the `CompleteRegistration` event through both the browser Pixel and TikTok's Events API with the same event ID, so TikTok can deduplicate it.
+
+To enable the server-side Events API, add the following environment variable to your local environment and production deployment:
+
+```bash
+TIKTOK_EVENTS_API_ACCESS_TOKEN=your_tiktok_events_api_access_token
+```
+
+Generate this token in TikTok Events Manager under the Pixel's settings. Do not expose it in browser code. Optionally set `TIKTOK_TEST_EVENT_CODE` while verifying server events in TikTok Events Manager, then remove it to send live events. `TIKTOK_PIXEL_CODE` can override the built-in Pixel code on the server and `NEXT_PUBLIC_TIKTOK_PIXEL_CODE` can override it in both browser and server builds.
+
 ## Getting Started
 
 First, run the development server:
@@ -34,3 +46,8 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Production environment variables
+
+- `POSTHOG_PROJECT_TOKEN` (optional) — overrides the PostHog EU project token used by the server-side quiz analytics.
+- `KV_REST_API_URL` and `KV_REST_API_TOKEN` (or matching Upstash variables) — persistent waitlist storage on Vercel.

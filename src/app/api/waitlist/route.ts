@@ -1,7 +1,9 @@
 import { createHash } from "crypto";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import { type NextRequest, NextResponse } from "next/server";
+import { after, type NextRequest, NextResponse } from "next/server";
+import { captureServerEvent } from "@/lib/posthog";
+import { captureTikTokCompleteRegistration } from "@/lib/tiktok-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,11 @@ type WaitlistRequestBody = {
   referrer?: unknown;
   ref?: unknown;
   website?: unknown;
+  phase?: unknown;
+  subject?: unknown;
+  score?: unknown;
+  analyticsDistinctId?: unknown;
+  tiktokEventId?: unknown;
 };
 
 type WaitlistSignup = {
@@ -45,6 +52,10 @@ const DATA_DIR = process.env.VERCEL
   : path.join(/*turbopackIgnore: true*/ process.cwd(), ".data");
 const LOG_PATH = path.join(DATA_DIR, "waitlist.jsonl");
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ANALYTICS_ID_PATTERN = /^[a-zA-Z0-9_-]{16,80}$/;
+const TIKTOK_EVENT_ID_PATTERN = /^[a-zA-Z0-9_-]{16,128}$/;
+const VALID_ANALYTICS_PHASES = new Set(["Vorklinik", "Physikum", "Klinik", "M2 / M3", "Neugierig"]);
+const VALID_ANALYTICS_SUBJECTS = new Set(["Anatomie", "Physiologie", "Biochemie", "Pharmakologie", "Klinische Fälle"]);
 
 function getLogPath() {
   return LOG_PATH;
@@ -100,6 +111,57 @@ function createEmailKey(email: string) {
 
 function hasRemoteStore() {
   return Boolean(REMOTE_REDIS_URL && REMOTE_REDIS_TOKEN);
+}
+
+function getAnalyticsDistinctId(value: unknown) {
+  const distinctId = sanitizeField(value, "");
+  return ANALYTICS_ID_PATTERN.test(distinctId) ? distinctId : undefined;
+}
+
+function getTikTokEventId(value: unknown) {
+  const eventId = sanitizeField(value, "");
+  return TIKTOK_EVENT_ID_PATTERN.test(eventId) ? eventId : undefined;
+}
+
+function buildTikTokPageUrl(request: NextRequest, body: WaitlistRequestBody) {
+  const requestedPath = sanitizeField(body.path, "/").slice(0, 120);
+  const path = requestedPath.startsWith("/") && !requestedPath.startsWith("//") ? requestedPath : "/";
+  const pageUrl = new URL(path, request.nextUrl.origin);
+  const searchParameters = new URLSearchParams(sanitizeField(body.search, "").slice(0, MAX_FIELD_LENGTH));
+
+  for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ttclid"]) {
+    const value = searchParameters.get(key);
+    if (value) pageUrl.searchParams.set(key, value.slice(0, 120));
+  }
+
+  return pageUrl.toString();
+}
+
+function getUtmProperties(search: string | undefined) {
+  const parameters = new URLSearchParams(search || "");
+  return Object.fromEntries(
+    ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]
+      .map((key) => [key, sanitizeField(parameters.get(key), "").slice(0, 120)] as const)
+      .filter(([, value]) => Boolean(value)),
+  );
+}
+
+function getWaitlistAnalyticsProperties(body: WaitlistRequestBody, signup: WaitlistSignup) {
+  const phase = sanitizeField(body.phase, "");
+  const subject = sanitizeField(body.subject, "");
+  const score = typeof body.score === "number" && Number.isInteger(body.score) && body.score >= 0 && body.score <= 3 ? body.score : undefined;
+
+  return {
+    quiz_version: "shortcheck_v1",
+    landing_path: sanitizeField(body.path, "/").slice(0, 120),
+    source: signup.source,
+    ...(VALID_ANALYTICS_PHASES.has(phase) ? { phase } : {}),
+    ...(VALID_ANALYTICS_SUBJECTS.has(subject) ? { subject } : {}),
+    ...(score !== undefined ? { score } : {}),
+    placement: "result_inline",
+    referred: Boolean(signup.referredBy),
+    ...getUtmProperties(signup.search),
+  };
 }
 
 function normalizeReferralCode(value: unknown) {
@@ -778,6 +840,23 @@ export async function POST(request: NextRequest) {
 
   updatedSignups.push(signup);
   await writeSignups(updatedSignups);
+
+  const analyticsDistinctId = getAnalyticsDistinctId(body.analyticsDistinctId);
+  if (analyticsDistinctId) {
+    await captureServerEvent({
+      distinctId: analyticsDistinctId,
+      event: "waitlist_submitted",
+      properties: getWaitlistAnalyticsProperties(body, signup),
+    });
+  }
+
+  const tiktokEventId = getTikTokEventId(body.tiktokEventId);
+  if (tiktokEventId) {
+    const pageUrl = buildTikTokPageUrl(request, body);
+    after(async () => {
+      await captureTikTokCompleteRegistration({ email, eventId: tiktokEventId, pageUrl, request });
+    });
+  }
 
   return NextResponse.json({
     ok: true,
