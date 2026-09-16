@@ -18,8 +18,9 @@ type Subject = "Anatomie" | "Physiologie" | "Biochemie" | "Pharmakologie" | "Kli
 type Screen = "intro" | "phase" | "subject" | "quiz" | "result";
 type Consent = "granted" | "denied";
 type Question = { question: string; options: string[]; correctIndex: number; explanation: string; topic: string };
-type QuizVisitEvent = "page_viewed" | "necessary_selected" | "analytics_selected" | "quiz_started" | "phase_selected" | "subject_selected" | "question_1_answered" | "question_2_answered" | "question_3_answered" | "result_viewed" | "email_started" | "email_submitted";
-type QuizVisitProperties = { phase?: Phase; subject?: Subject; score?: number };
+type QuizVisitEvent = "page_viewed" | "necessary_selected" | "analytics_selected" | "quiz_started" | "phase_selected" | "subject_selected" | "question_1_answered" | "question_2_answered" | "question_3_answered" | "result_viewed" | "email_started" | "email_submitted" | "session_heartbeat" | "session_ended";
+type QuizVisitProperties = { phase?: Phase; subject?: Subject; score?: number; elapsedDurationMs?: number; activeDurationMs?: number };
+type QuizVisitRecordOptions = { deduplicate?: boolean; beacon?: boolean };
 
 const questionAnsweredEvents: readonly QuizVisitEvent[] = ["question_1_answered", "question_2_answered", "question_3_answered"];
 
@@ -27,6 +28,7 @@ const logoUrl = "/assets/medula-logo-horizontal.svg";
 const appPreviewUrl = "/assets/medula-dashboard.png";
 const consentStorageKey = "medula_analytics_consent";
 const consentDays = 180;
+const sessionHeartbeatIntervalMs = 10_000;
 
 const phaseOptions: { label: Phase; note: string; icon: string }[] = [
   { label: "Vorklinik", note: "Grundlagen aufbauen", icon: "⌁" },
@@ -149,6 +151,7 @@ function getQuizVisitMetadata() {
 export default function Home() {
   const analytics = useRef({ landingTracked: false, distinctId: "" });
   const quizVisit = useRef({ id: "", recordedEvents: new Set<QuizVisitEvent>() });
+  const quizVisitTiming = useRef({ startedAt: 0, activeStartedAt: 0, completedActiveDurationMs: 0 });
   const acquisitionProperties = useMemo(() => getAcquisitionProperties(), []);
   const [screen, setScreen] = useState<Screen>("intro");
   const [phase, setPhase] = useState<Phase | null>(null);
@@ -190,16 +193,38 @@ export default function Home() {
     return quizVisit.current.id;
   }, []);
 
-  const recordQuizVisit = useCallback((event: QuizVisitEvent, properties: QuizVisitProperties = {}) => {
-    if (quizVisit.current.recordedEvents.has(event)) return;
-    quizVisit.current.recordedEvents.add(event);
+  const getQuizVisitTiming = useCallback(() => {
+    const now = Date.now();
+    const timing = quizVisitTiming.current;
+    if (!timing.startedAt) {
+      timing.startedAt = now;
+      timing.activeStartedAt = document.visibilityState === "visible" ? now : 0;
+    }
+
+    return {
+      elapsedDurationMs: Math.max(0, now - timing.startedAt),
+      activeDurationMs: Math.max(0, timing.completedActiveDurationMs + (timing.activeStartedAt ? now - timing.activeStartedAt : 0)),
+    };
+  }, []);
+
+  const recordQuizVisit = useCallback((event: QuizVisitEvent, properties: QuizVisitProperties = {}, options: QuizVisitRecordOptions = {}) => {
+    const deduplicate = options.deduplicate ?? true;
+    if (deduplicate && quizVisit.current.recordedEvents.has(event)) return;
+    if (deduplicate) quizVisit.current.recordedEvents.add(event);
+    const payload = JSON.stringify({ visitId: getQuizVisitId(), event, ...getQuizVisitTiming(), ...properties, metadata: getQuizVisitMetadata() });
+
+    if (options.beacon && navigator.sendBeacon) {
+      const sent = navigator.sendBeacon("/api/quiz-visits", new Blob([payload], { type: "application/json" }));
+      if (sent) return;
+    }
+
     void fetch("/api/quiz-visits", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visitId: getQuizVisitId(), event, ...properties, metadata: getQuizVisitMetadata() }),
+      body: payload,
       keepalive: true,
     }).catch(() => undefined);
-  }, [getQuizVisitId]);
+  }, [getQuizVisitId, getQuizVisitTiming]);
 
   const trackLanding = useCallback(() => {
     if (analytics.current.landingTracked || readConsent() !== "granted") return;
@@ -218,6 +243,45 @@ export default function Home() {
   useEffect(() => {
     recordQuizVisit("page_viewed");
   }, [recordQuizVisit]);
+
+  useEffect(() => {
+    function stopActiveTime() {
+      const timing = quizVisitTiming.current;
+      if (!timing.activeStartedAt) return;
+      timing.completedActiveDurationMs += Math.max(0, Date.now() - timing.activeStartedAt);
+      timing.activeStartedAt = 0;
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        stopActiveTime();
+        recordQuizVisit("session_heartbeat", getQuizVisitTiming(), { deduplicate: false, beacon: true });
+        return;
+      }
+
+      const timing = quizVisitTiming.current;
+      if (timing.startedAt && !timing.activeStartedAt) timing.activeStartedAt = Date.now();
+    }
+
+    function handlePageHide() {
+      stopActiveTime();
+      recordQuizVisit("session_ended", getQuizVisitTiming(), { beacon: true });
+    }
+
+    const heartbeat = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        recordQuizVisit("session_heartbeat", getQuizVisitTiming(), { deduplicate: false });
+      }
+    }, sessionHeartbeatIntervalMs);
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      window.clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [getQuizVisitTiming, recordQuizVisit]);
 
   useEffect(() => {
     if (screen === "quiz" && phase && subject) track("question_viewed", { phase, subject, question_number: questionIndex + 1 });

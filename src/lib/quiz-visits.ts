@@ -32,6 +32,8 @@ export const quizVisitEvents = [
   "result_viewed",
   "email_started",
   "email_submitted",
+  "session_heartbeat",
+  "session_ended",
 ] as const;
 
 export type QuizVisitEvent = (typeof quizVisitEvents)[number];
@@ -93,6 +95,10 @@ export type QuizVisit = {
   resultViewedAt?: string;
   emailStartedAt?: string;
   emailSubmittedAt?: string;
+  sessionHeartbeatAt?: string;
+  sessionEndedAt?: string;
+  elapsedDurationMs?: number;
+  activeDurationMs?: number;
   consentChoice?: "necessary" | "analytics";
   phase?: string;
   subject?: string;
@@ -107,9 +113,11 @@ type QuizVisitUpdate = {
   subject?: string;
   score?: number;
   metadata?: QuizVisitMetadata;
+  elapsedDurationMs?: number;
+  activeDurationMs?: number;
 };
 
-type TimestampVisitField = "pageViewedAt" | "necessarySelectedAt" | "analyticsSelectedAt" | "quizStartedAt" | "phaseSelectedAt" | "subjectSelectedAt" | "question1AnsweredAt" | "question2AnsweredAt" | "question3AnsweredAt" | "resultViewedAt" | "emailStartedAt" | "emailSubmittedAt";
+type TimestampVisitField = "pageViewedAt" | "necessarySelectedAt" | "analyticsSelectedAt" | "quizStartedAt" | "phaseSelectedAt" | "subjectSelectedAt" | "question1AnsweredAt" | "question2AnsweredAt" | "question3AnsweredAt" | "resultViewedAt" | "emailStartedAt" | "emailSubmittedAt" | "sessionHeartbeatAt" | "sessionEndedAt";
 
 const eventFields: Record<QuizVisitEvent, TimestampVisitField> = {
   page_viewed: "pageViewedAt",
@@ -124,6 +132,8 @@ const eventFields: Record<QuizVisitEvent, TimestampVisitField> = {
   result_viewed: "resultViewedAt",
   email_started: "emailStartedAt",
   email_submitted: "emailSubmittedAt",
+  session_heartbeat: "sessionHeartbeatAt",
+  session_ended: "sessionEndedAt",
 };
 
 function hasRemoteStore() {
@@ -140,6 +150,10 @@ function optionalString(value: unknown, maximumLength: number) {
 
 function optionalNumber(value: unknown, maximumValue: number) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= maximumValue ? value : undefined;
+}
+
+function optionalDuration(value: unknown) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 2_592_000_000 ? value : undefined;
 }
 
 function optionalBoolean(value: unknown) {
@@ -203,6 +217,11 @@ function parseStoredQuizVisitMetadata(value: unknown) {
   }
 }
 
+function parseStoredDuration(value: unknown) {
+  const parsed = typeof value === "string" ? Number(value) : value;
+  return optionalDuration(parsed);
+}
+
 function toRecord(value: unknown): Record<string, unknown> | null {
   if (isRecord(value)) return value;
 
@@ -263,6 +282,10 @@ function normalizeQuizVisit(value: unknown): QuizVisit | null {
     resultViewedAt: toOptionalTimestamp(record.resultViewedAt),
     emailStartedAt: toOptionalTimestamp(record.emailStartedAt),
     emailSubmittedAt: toOptionalTimestamp(record.emailSubmittedAt),
+    sessionHeartbeatAt: toOptionalTimestamp(record.sessionHeartbeatAt),
+    sessionEndedAt: toOptionalTimestamp(record.sessionEndedAt),
+    elapsedDurationMs: parseStoredDuration(record.elapsedDurationMs),
+    activeDurationMs: parseStoredDuration(record.activeDurationMs),
     consentChoice: record.consentChoice === "necessary" || record.consentChoice === "analytics" ? record.consentChoice : undefined,
     phase: typeof record.phase === "string" && VALID_PHASES.has(record.phase) ? record.phase : undefined,
     subject: typeof record.subject === "string" && VALID_SUBJECTS.has(record.subject) ? record.subject : undefined,
@@ -328,6 +351,8 @@ function toVisitUpdate(value: unknown): QuizVisitUpdate | null {
     subject: typeof value.subject === "string" && VALID_SUBJECTS.has(value.subject) ? value.subject : undefined,
     score: typeof value.score === "number" && Number.isInteger(value.score) && value.score >= 0 && value.score <= 3 ? value.score : undefined,
     metadata: normalizeQuizVisitMetadata(value.metadata),
+    elapsedDurationMs: optionalDuration(value.elapsedDurationMs),
+    activeDurationMs: optionalDuration(value.activeDurationMs),
   };
 }
 
@@ -354,6 +379,8 @@ function applyVisitUpdate(existing: QuizVisit | undefined, update: QuizVisitUpda
     ...(update.subject ? { subject: update.subject } : {}),
     ...(update.score !== undefined ? { score: update.score } : {}),
     ...(update.metadata ? { metadata: update.metadata } : {}),
+    ...(update.elapsedDurationMs !== undefined ? { elapsedDurationMs: update.elapsedDurationMs } : {}),
+    ...(update.activeDurationMs !== undefined ? { activeDurationMs: update.activeDurationMs } : {}),
   };
 }
 
@@ -371,6 +398,8 @@ export async function recordQuizVisit(update: QuizVisitUpdate) {
     if (update.subject) values.push("subject", update.subject);
     if (update.score !== undefined) values.push("score", String(update.score));
     if (update.metadata) values.push("metadata", JSON.stringify(update.metadata));
+    if (update.elapsedDurationMs !== undefined) values.push("elapsedDurationMs", String(update.elapsedDurationMs));
+    if (update.activeDurationMs !== undefined) values.push("activeDurationMs", String(update.activeDurationMs));
 
     await Promise.all([
       runRedisCommand(["HSETNX", key, "id", update.visitId]),

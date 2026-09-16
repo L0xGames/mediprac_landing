@@ -346,6 +346,10 @@ function buildQuizVisitsCsv(visits: QuizVisit[]) {
     "score",
     "emailStartedAt",
     "emailSubmittedAt",
+    "sessionHeartbeatAt",
+    "sessionEndedAt",
+    "elapsedDurationMs",
+    "activeDurationMs",
     "lastEventAt",
     "ip",
     "country",
@@ -406,6 +410,10 @@ function buildQuizVisitsCsv(visits: QuizVisit[]) {
       visit.score,
       visit.emailStartedAt,
       visit.emailSubmittedAt,
+      visit.sessionHeartbeatAt,
+      visit.sessionEndedAt,
+      visit.elapsedDurationMs,
+      visit.activeDurationMs,
       visit.lastEventAt,
       metadata.ip,
       metadata.country,
@@ -474,6 +482,18 @@ function formatDateTime(value: string) {
     timeStyle: "short",
     timeZone: "Europe/Berlin",
   }).format(date);
+}
+
+function formatDuration(value: number | undefined) {
+  if (typeof value !== "number") return "-";
+  const milliseconds = value % 1_000;
+  const totalSeconds = Math.floor(value / 1_000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.floor(totalMinutes / 60);
+  const prefix = hours > 0 ? `${hours}h ${minutes}m ` : minutes > 0 ? `${minutes}m ` : "";
+  return `${prefix}${seconds}.${String(milliseconds).padStart(3, "0")}s`;
 }
 
 function buildQuizVisitMetadataHtml(visit: QuizVisit) {
@@ -556,6 +576,8 @@ function buildWaitlistHtml(signups: WaitlistSignup[], quizVisits: QuizVisit[], r
           <td>${escapeHtml(visit.score ?? "-")}</td>
           <td>${escapeHtml(formatDateTime(visit.emailStartedAt || ""))}</td>
           <td>${escapeHtml(formatDateTime(visit.emailSubmittedAt || ""))}</td>
+          <td>${escapeHtml(formatDuration(visit.elapsedDurationMs))}</td>
+          <td>${escapeHtml(formatDuration(visit.activeDurationMs))}</td>
           <td>${buildQuizVisitMetadataHtml(visit)}</td>
         </tr>`,
     )
@@ -981,6 +1003,8 @@ function buildWaitlistHtml(signups: WaitlistSignup[], quizVisits: QuizVisit[], r
                       <th>Score</th>
                       <th>E-Mail begonnen</th>
                       <th>E-Mail gesendet</th>
+                      <th>Zeit auf Seite</th>
+                      <th>Aktiv im Vordergrund</th>
                       <th>Gerät &amp; Netzwerk</th>
                     </tr>
                   </thead>
