@@ -36,6 +36,47 @@ export const quizVisitEvents = [
 
 export type QuizVisitEvent = (typeof quizVisitEvents)[number];
 
+export type QuizVisitMetadata = {
+  ip?: string;
+  userAgent?: string;
+  browser?: string;
+  browserVersion?: string;
+  operatingSystem?: string;
+  deviceType?: string;
+  country?: string;
+  countryRegion?: string;
+  city?: string;
+  latitude?: string;
+  longitude?: string;
+  acceptLanguage?: string;
+  browserHints?: string;
+  pageUrl?: string;
+  pagePath?: string;
+  pageSearch?: string;
+  referrer?: string;
+  language?: string;
+  languages?: string;
+  timeZone?: string;
+  platform?: string;
+  vendor?: string;
+  screenWidth?: number;
+  screenHeight?: number;
+  viewportWidth?: number;
+  viewportHeight?: number;
+  devicePixelRatio?: number;
+  colorDepth?: number;
+  pixelDepth?: number;
+  screenOrientation?: string;
+  touchPoints?: number;
+  hardwareConcurrency?: number;
+  deviceMemory?: number;
+  connection?: string;
+  cookiesEnabled?: boolean;
+  doNotTrack?: string;
+  globalPrivacyControl?: boolean;
+  webdriver?: boolean;
+};
+
 export type QuizVisit = {
   id: string;
   createdAt: string;
@@ -56,6 +97,7 @@ export type QuizVisit = {
   phase?: string;
   subject?: string;
   score?: number;
+  metadata?: QuizVisitMetadata;
 };
 
 type QuizVisitUpdate = {
@@ -64,6 +106,7 @@ type QuizVisitUpdate = {
   phase?: string;
   subject?: string;
   score?: number;
+  metadata?: QuizVisitMetadata;
 };
 
 type TimestampVisitField = "pageViewedAt" | "necessarySelectedAt" | "analyticsSelectedAt" | "quizStartedAt" | "phaseSelectedAt" | "subjectSelectedAt" | "question1AnsweredAt" | "question2AnsweredAt" | "question3AnsweredAt" | "resultViewedAt" | "emailStartedAt" | "emailSubmittedAt";
@@ -89,6 +132,75 @@ function hasRemoteStore() {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function optionalString(value: unknown, maximumLength: number) {
+  return typeof value === "string" ? value.trim().slice(0, maximumLength) || undefined : undefined;
+}
+
+function optionalNumber(value: unknown, maximumValue: number) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= maximumValue ? value : undefined;
+}
+
+function optionalBoolean(value: unknown) {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+export function normalizeQuizVisitMetadata(value: unknown): QuizVisitMetadata | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const metadata: QuizVisitMetadata = {
+    ip: optionalString(value.ip, 120),
+    userAgent: optionalString(value.userAgent, 2_000),
+    browser: optionalString(value.browser, 120),
+    browserVersion: optionalString(value.browserVersion, 120),
+    operatingSystem: optionalString(value.operatingSystem, 120),
+    deviceType: optionalString(value.deviceType, 32),
+    country: optionalString(value.country, 80),
+    countryRegion: optionalString(value.countryRegion, 120),
+    city: optionalString(value.city, 160),
+    latitude: optionalString(value.latitude, 80),
+    longitude: optionalString(value.longitude, 80),
+    acceptLanguage: optionalString(value.acceptLanguage, 500),
+    browserHints: optionalString(value.browserHints, 2_000),
+    pageUrl: optionalString(value.pageUrl, 2_000),
+    pagePath: optionalString(value.pagePath, 500),
+    pageSearch: optionalString(value.pageSearch, 2_000),
+    referrer: optionalString(value.referrer, 2_000),
+    language: optionalString(value.language, 80),
+    languages: optionalString(value.languages, 500),
+    timeZone: optionalString(value.timeZone, 120),
+    platform: optionalString(value.platform, 120),
+    vendor: optionalString(value.vendor, 120),
+    screenWidth: optionalNumber(value.screenWidth, 20_000),
+    screenHeight: optionalNumber(value.screenHeight, 20_000),
+    viewportWidth: optionalNumber(value.viewportWidth, 20_000),
+    viewportHeight: optionalNumber(value.viewportHeight, 20_000),
+    devicePixelRatio: optionalNumber(value.devicePixelRatio, 100),
+    colorDepth: optionalNumber(value.colorDepth, 128),
+    pixelDepth: optionalNumber(value.pixelDepth, 128),
+    screenOrientation: optionalString(value.screenOrientation, 120),
+    touchPoints: optionalNumber(value.touchPoints, 100),
+    hardwareConcurrency: optionalNumber(value.hardwareConcurrency, 1_024),
+    deviceMemory: optionalNumber(value.deviceMemory, 1_024),
+    connection: optionalString(value.connection, 500),
+    cookiesEnabled: optionalBoolean(value.cookiesEnabled),
+    doNotTrack: optionalString(value.doNotTrack, 32),
+    globalPrivacyControl: optionalBoolean(value.globalPrivacyControl),
+    webdriver: optionalBoolean(value.webdriver),
+  };
+
+  return Object.values(metadata).some((entry) => entry !== undefined) ? metadata : undefined;
+}
+
+function parseStoredQuizVisitMetadata(value: unknown) {
+  if (typeof value !== "string") return normalizeQuizVisitMetadata(value);
+
+  try {
+    return normalizeQuizVisitMetadata(JSON.parse(value) as unknown);
+  } catch {
+    return undefined;
+  }
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -133,6 +245,7 @@ function normalizeQuizVisit(value: unknown): QuizVisit | null {
 
   const pageViewedAt = toOptionalTimestamp(record.pageViewedAt) || record.createdAt;
   const score = typeof record.score === "string" ? Number(record.score) : record.score;
+  const metadata = parseStoredQuizVisitMetadata(record.metadata);
 
   return {
     id: record.id,
@@ -154,6 +267,7 @@ function normalizeQuizVisit(value: unknown): QuizVisit | null {
     phase: typeof record.phase === "string" && VALID_PHASES.has(record.phase) ? record.phase : undefined,
     subject: typeof record.subject === "string" && VALID_SUBJECTS.has(record.subject) ? record.subject : undefined,
     score: typeof score === "number" && Number.isInteger(score) && score >= 0 && score <= 3 ? score : undefined,
+    metadata,
   };
 }
 
@@ -213,6 +327,7 @@ function toVisitUpdate(value: unknown): QuizVisitUpdate | null {
     phase: typeof value.phase === "string" && VALID_PHASES.has(value.phase) ? value.phase : undefined,
     subject: typeof value.subject === "string" && VALID_SUBJECTS.has(value.subject) ? value.subject : undefined,
     score: typeof value.score === "number" && Number.isInteger(value.score) && value.score >= 0 && value.score <= 3 ? value.score : undefined,
+    metadata: normalizeQuizVisitMetadata(value.metadata),
   };
 }
 
@@ -238,6 +353,7 @@ function applyVisitUpdate(existing: QuizVisit | undefined, update: QuizVisitUpda
     ...(update.phase ? { phase: update.phase } : {}),
     ...(update.subject ? { subject: update.subject } : {}),
     ...(update.score !== undefined ? { score: update.score } : {}),
+    ...(update.metadata ? { metadata: update.metadata } : {}),
   };
 }
 
@@ -254,6 +370,7 @@ export async function recordQuizVisit(update: QuizVisitUpdate) {
     if (update.phase) values.push("phase", update.phase);
     if (update.subject) values.push("subject", update.subject);
     if (update.score !== undefined) values.push("score", String(update.score));
+    if (update.metadata) values.push("metadata", JSON.stringify(update.metadata));
 
     await Promise.all([
       runRedisCommand(["HSETNX", key, "id", update.visitId]),

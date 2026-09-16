@@ -329,7 +329,7 @@ function buildCsv(signups: WaitlistSignup[]) {
 }
 
 function buildQuizVisitsCsv(visits: QuizVisit[]) {
-  const headers: (keyof QuizVisit)[] = [
+  const headers = [
     "id",
     "pageViewedAt",
     "necessarySelectedAt",
@@ -347,12 +347,108 @@ function buildQuizVisitsCsv(visits: QuizVisit[]) {
     "emailStartedAt",
     "emailSubmittedAt",
     "lastEventAt",
+    "ip",
+    "country",
+    "countryRegion",
+    "city",
+    "latitude",
+    "longitude",
+    "browser",
+    "browserVersion",
+    "operatingSystem",
+    "deviceType",
+    "userAgent",
+    "browserHints",
+    "acceptLanguage",
+    "language",
+    "languages",
+    "timeZone",
+    "platform",
+    "vendor",
+    "screenWidth",
+    "screenHeight",
+    "viewportWidth",
+    "viewportHeight",
+    "devicePixelRatio",
+    "colorDepth",
+    "pixelDepth",
+    "screenOrientation",
+    "touchPoints",
+    "hardwareConcurrency",
+    "deviceMemory",
+    "connection",
+    "cookiesEnabled",
+    "doNotTrack",
+    "globalPrivacyControl",
+    "webdriver",
+    "pageUrl",
+    "pagePath",
+    "pageSearch",
+    "referrer",
+    "metadataJson",
   ];
-  const rows = visits.map((visit) =>
-    headers
-      .map((header) => `"${String(visit[header] ?? "").replace(/"/g, '""')}"`)
-      .join(","),
-  );
+  const rows = visits.map((visit) => {
+    const metadata = visit.metadata || {};
+    const values = [
+      visit.id,
+      visit.pageViewedAt,
+      visit.necessarySelectedAt,
+      visit.analyticsSelectedAt,
+      visit.quizStartedAt,
+      visit.phase,
+      visit.phaseSelectedAt,
+      visit.subject,
+      visit.subjectSelectedAt,
+      visit.question1AnsweredAt,
+      visit.question2AnsweredAt,
+      visit.question3AnsweredAt,
+      visit.resultViewedAt,
+      visit.score,
+      visit.emailStartedAt,
+      visit.emailSubmittedAt,
+      visit.lastEventAt,
+      metadata.ip,
+      metadata.country,
+      metadata.countryRegion,
+      metadata.city,
+      metadata.latitude,
+      metadata.longitude,
+      metadata.browser,
+      metadata.browserVersion,
+      metadata.operatingSystem,
+      metadata.deviceType,
+      metadata.userAgent,
+      metadata.browserHints,
+      metadata.acceptLanguage,
+      metadata.language,
+      metadata.languages,
+      metadata.timeZone,
+      metadata.platform,
+      metadata.vendor,
+      metadata.screenWidth,
+      metadata.screenHeight,
+      metadata.viewportWidth,
+      metadata.viewportHeight,
+      metadata.devicePixelRatio,
+      metadata.colorDepth,
+      metadata.pixelDepth,
+      metadata.screenOrientation,
+      metadata.touchPoints,
+      metadata.hardwareConcurrency,
+      metadata.deviceMemory,
+      metadata.connection,
+      metadata.cookiesEnabled,
+      metadata.doNotTrack,
+      metadata.globalPrivacyControl,
+      metadata.webdriver,
+      metadata.pageUrl,
+      metadata.pagePath,
+      metadata.pageSearch,
+      metadata.referrer,
+      Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : undefined,
+    ];
+    return values.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",");
+  });
 
   return [headers.join(","), ...rows].join("\n");
 }
@@ -378,6 +474,36 @@ function formatDateTime(value: string) {
     timeStyle: "short",
     timeZone: "Europe/Berlin",
   }).format(date);
+}
+
+function buildQuizVisitMetadataHtml(visit: QuizVisit) {
+  const metadata = visit.metadata;
+  if (!metadata) return "-";
+
+  const entries = [
+    ["IP", metadata.ip],
+    ["Standort", [metadata.city, metadata.countryRegion, metadata.country].filter(Boolean).join(", ")],
+    ["Koordinaten", [metadata.latitude, metadata.longitude].filter(Boolean).join(", ")],
+    ["Browser", [metadata.browser, metadata.browserVersion].filter(Boolean).join(" ")],
+    ["Betriebssystem", metadata.operatingSystem],
+    ["Gerät", metadata.deviceType],
+    ["User-Agent", metadata.userAgent],
+    ["Browser-Hinweise", metadata.browserHints],
+    ["Sprache", [metadata.language, metadata.languages, metadata.acceptLanguage].filter(Boolean).join(" · ")],
+    ["Zeitzone", metadata.timeZone],
+    ["Plattform", [metadata.platform, metadata.vendor].filter(Boolean).join(" · ")],
+    ["Bildschirm", metadata.screenWidth && metadata.screenHeight ? `${metadata.screenWidth} × ${metadata.screenHeight}` : ""],
+    ["Viewport", metadata.viewportWidth && metadata.viewportHeight ? `${metadata.viewportWidth} × ${metadata.viewportHeight}` : ""],
+    ["Display", [metadata.devicePixelRatio && `DPR ${metadata.devicePixelRatio}`, metadata.colorDepth && `${metadata.colorDepth}-bit`, metadata.screenOrientation].filter(Boolean).join(" · ")],
+    ["Hardware", [metadata.touchPoints !== undefined && `${metadata.touchPoints} Touchpoints`, metadata.hardwareConcurrency && `${metadata.hardwareConcurrency} Kerne`, metadata.deviceMemory && `${metadata.deviceMemory} GB`].filter(Boolean).join(" · ")],
+    ["Verbindung", metadata.connection],
+    ["Datenschutzsignale", [metadata.cookiesEnabled !== undefined && `Cookies ${metadata.cookiesEnabled ? "an" : "aus"}`, metadata.doNotTrack && `DNT ${metadata.doNotTrack}`, metadata.globalPrivacyControl !== undefined && `GPC ${metadata.globalPrivacyControl ? "an" : "aus"}`, metadata.webdriver !== undefined && `WebDriver ${metadata.webdriver ? "an" : "aus"}`].filter(Boolean).join(" · ")],
+    ["Seite", metadata.pageUrl],
+    ["Referrer", metadata.referrer],
+  ].filter(([, value]) => Boolean(value));
+
+  const summary = [metadata.ip, metadata.browser, metadata.deviceType].filter(Boolean).join(" · ") || "Details";
+  return `<details><summary>${escapeHtml(summary)}</summary><dl class="visit-metadata">${entries.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join("")}</dl></details>`;
 }
 
 function buildWaitlistHtml(signups: WaitlistSignup[], quizVisits: QuizVisit[], request: NextRequest) {
@@ -430,6 +556,7 @@ function buildWaitlistHtml(signups: WaitlistSignup[], quizVisits: QuizVisit[], r
           <td>${escapeHtml(visit.score ?? "-")}</td>
           <td>${escapeHtml(formatDateTime(visit.emailStartedAt || ""))}</td>
           <td>${escapeHtml(formatDateTime(visit.emailSubmittedAt || ""))}</td>
+          <td>${buildQuizVisitMetadataHtml(visit)}</td>
         </tr>`,
     )
     .join("");
@@ -688,6 +815,24 @@ function buildWaitlistHtml(signups: WaitlistSignup[], quizVisits: QuizVisit[], r
         text-overflow: ellipsis;
       }
 
+      .visit-metadata {
+        display: grid;
+        grid-template-columns: max-content minmax(220px, 520px);
+        gap: 5px 10px;
+        margin: 10px 0 0;
+        white-space: normal;
+      }
+
+      .visit-metadata dt {
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .visit-metadata dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+
       .status {
         display: inline-flex;
         margin-top: 6px;
@@ -836,6 +981,7 @@ function buildWaitlistHtml(signups: WaitlistSignup[], quizVisits: QuizVisit[], r
                       <th>Score</th>
                       <th>E-Mail begonnen</th>
                       <th>E-Mail gesendet</th>
+                      <th>Gerät &amp; Netzwerk</th>
                     </tr>
                   </thead>
                   <tbody>${quizVisitRows}</tbody>

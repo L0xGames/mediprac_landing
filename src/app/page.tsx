@@ -98,6 +98,54 @@ function getAcquisitionProperties() {
   return properties;
 }
 
+function getQuizVisitMetadata() {
+  const navigation = navigator as Navigator & {
+    connection?: { effectiveType?: string; type?: string; downlink?: number; rtt?: number; saveData?: boolean };
+    deviceMemory?: number;
+    globalPrivacyControl?: boolean;
+  };
+  const connection = navigation.connection;
+  const connectionDetails = connection
+    ? [
+        connection.effectiveType && `effectiveType=${connection.effectiveType}`,
+        connection.type && `type=${connection.type}`,
+        typeof connection.downlink === "number" && `downlinkMbps=${connection.downlink}`,
+        typeof connection.rtt === "number" && `rttMs=${connection.rtt}`,
+        typeof connection.saveData === "boolean" && `saveData=${connection.saveData}`,
+      ]
+        .filter(Boolean)
+        .join("; ")
+    : undefined;
+
+  return {
+    pageUrl: window.location.href,
+    pagePath: window.location.pathname,
+    pageSearch: window.location.search,
+    referrer: document.referrer || undefined,
+    language: navigation.language,
+    languages: navigation.languages?.join(", "),
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    platform: navigation.platform,
+    vendor: navigation.vendor,
+    screenWidth: window.screen.width,
+    screenHeight: window.screen.height,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+    devicePixelRatio: window.devicePixelRatio,
+    colorDepth: window.screen.colorDepth,
+    pixelDepth: window.screen.pixelDepth,
+    screenOrientation: window.screen.orientation?.type,
+    touchPoints: navigation.maxTouchPoints,
+    hardwareConcurrency: navigation.hardwareConcurrency,
+    deviceMemory: navigation.deviceMemory,
+    connection: connectionDetails,
+    cookiesEnabled: navigation.cookieEnabled,
+    doNotTrack: navigation.doNotTrack || undefined,
+    globalPrivacyControl: navigation.globalPrivacyControl,
+    webdriver: navigation.webdriver,
+  };
+}
+
 export default function Home() {
   const analytics = useRef({ landingTracked: false, distinctId: "" });
   const quizVisit = useRef({ id: "", recordedEvents: new Set<QuizVisitEvent>() });
@@ -148,7 +196,7 @@ export default function Home() {
     void fetch("/api/quiz-visits", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visitId: getQuizVisitId(), event, ...properties }),
+      body: JSON.stringify({ visitId: getQuizVisitId(), event, ...properties, metadata: getQuizVisitMetadata() }),
       keepalive: true,
     }).catch(() => undefined);
   }, [getQuizVisitId]);
