@@ -30,7 +30,7 @@ body {
   min-height: 100vh;
   margin: 0;
   color: var(--ink);
-  background: var(--cream);
+  background: #087a57;
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
     "SF Pro Display", "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
