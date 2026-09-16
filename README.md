@@ -51,3 +51,9 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 - `POSTHOG_PROJECT_TOKEN` (optional) — overrides the PostHog EU project token used by the server-side quiz analytics.
 - `KV_REST_API_URL` and `KV_REST_API_TOKEN` (or matching Upstash variables) — persistent waitlist storage on Vercel.
+
+## Quiz visit records
+
+Every landing-page view creates a separate quiz-visit record in the same KV store. The record is updated as the visitor starts the quiz, selects a learning phase and subject, answers each question, reaches the result, begins the email field, and submits the waitlist form. The quiz-visit record stores timestamps and quiz progress only; the email address remains in the separate waitlist entry.
+
+Open `/api/waitlist` to view the latest records in the **Quiz-Verlauf** table, or use `/api/waitlist?format=quiz-visits-csv` to export them.

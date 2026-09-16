@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { after, type NextRequest, NextResponse } from "next/server";
 import { captureServerEvent } from "@/lib/posthog";
+import { listQuizVisits, type QuizVisit } from "@/lib/quiz-visits";
 import { captureTikTokCompleteRegistration } from "@/lib/tiktok-server";
 
 export const runtime = "nodejs";
@@ -327,6 +328,35 @@ function buildCsv(signups: WaitlistSignup[]) {
   return [headers.join(","), ...rows].join("\n");
 }
 
+function buildQuizVisitsCsv(visits: QuizVisit[]) {
+  const headers: (keyof QuizVisit)[] = [
+    "id",
+    "pageViewedAt",
+    "necessarySelectedAt",
+    "analyticsSelectedAt",
+    "quizStartedAt",
+    "phase",
+    "phaseSelectedAt",
+    "subject",
+    "subjectSelectedAt",
+    "question1AnsweredAt",
+    "question2AnsweredAt",
+    "question3AnsweredAt",
+    "resultViewedAt",
+    "score",
+    "emailStartedAt",
+    "emailSubmittedAt",
+    "lastEventAt",
+  ];
+  const rows = visits.map((visit) =>
+    headers
+      .map((header) => `"${String(visit[header] ?? "").replace(/"/g, '""')}"`)
+      .join(","),
+  );
+
+  return [headers.join(","), ...rows].join("\n");
+}
+
 function escapeHtml(value: unknown) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -350,7 +380,7 @@ function formatDateTime(value: string) {
   }).format(date);
 }
 
-function buildWaitlistHtml(signups: WaitlistSignup[], request: NextRequest) {
+function buildWaitlistHtml(signups: WaitlistSignup[], quizVisits: QuizVisit[], request: NextRequest) {
   const total = signups.length;
   const today = new Date().toISOString().slice(0, 10);
   const signupsToday = signups.filter((signup) => signup.day === today).length;
@@ -359,6 +389,8 @@ function buildWaitlistHtml(signups: WaitlistSignup[], request: NextRequest) {
   const latestSignups = signups.slice().reverse();
   const csvUrl = new URL(request.nextUrl);
   csvUrl.searchParams.set("format", "csv");
+  const quizVisitsCsvUrl = new URL(request.nextUrl);
+  quizVisitsCsvUrl.searchParams.set("format", "quiz-visits-csv");
 
   const rows = latestSignups
     .map(
@@ -377,6 +409,27 @@ function buildWaitlistHtml(signups: WaitlistSignup[], request: NextRequest) {
           <td>${escapeHtml(signup.referralCode)}</td>
           <td>${escapeHtml(signup.referralCount)}</td>
           <td>${escapeHtml(signup.referredBy || "-")}</td>
+        </tr>`,
+    )
+    .join("");
+
+  const quizVisitRows = quizVisits
+    .map(
+      (visit) => `
+        <tr>
+          <td class="session-id">${escapeHtml(visit.id)}</td>
+          <td>${escapeHtml(formatDateTime(visit.pageViewedAt))}</td>
+          <td>${escapeHtml(visit.consentChoice === "necessary" ? "Nur notwendige" : visit.consentChoice === "analytics" ? "Zustimmung" : "-")}</td>
+          <td>${escapeHtml(formatDateTime(visit.quizStartedAt || ""))}</td>
+          <td>${escapeHtml(visit.phase || "-")}</td>
+          <td>${escapeHtml(visit.subject || "-")}</td>
+          <td>${escapeHtml(formatDateTime(visit.question1AnsweredAt || ""))}</td>
+          <td>${escapeHtml(formatDateTime(visit.question2AnsweredAt || ""))}</td>
+          <td>${escapeHtml(formatDateTime(visit.question3AnsweredAt || ""))}</td>
+          <td>${escapeHtml(formatDateTime(visit.resultViewedAt || ""))}</td>
+          <td>${escapeHtml(visit.score ?? "-")}</td>
+          <td>${escapeHtml(formatDateTime(visit.emailStartedAt || ""))}</td>
+          <td>${escapeHtml(formatDateTime(visit.emailSubmittedAt || ""))}</td>
         </tr>`,
     )
     .join("");
@@ -626,6 +679,15 @@ function buildWaitlistHtml(signups: WaitlistSignup[], request: NextRequest) {
         font-weight: 800;
       }
 
+      .session-id {
+        max-width: 150px;
+        overflow: hidden;
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+        text-overflow: ellipsis;
+      }
+
       .status {
         display: inline-flex;
         margin-top: 6px;
@@ -744,6 +806,42 @@ function buildWaitlistHtml(signups: WaitlistSignup[], request: NextRequest) {
                 </table>
               </div>`
             : '<div class="empty">Noch keine Wartelisten-Einträge vorhanden.</div>'
+        }
+      </section>
+
+      <section class="table-shell" aria-labelledby="quiz-visits-title" style="margin-top: 24px">
+        <div class="table-head">
+          <div>
+            <h2 class="table-title" id="quiz-visits-title">Quiz-Verlauf</h2>
+            <p class="table-meta">Jeder Seitenaufruf erhält eine eigene Zeile. Die E-Mail selbst bleibt ausschließlich im Wartelisten-Eintrag.</p>
+          </div>
+          <a class="button" href="${escapeHtml(quizVisitsCsvUrl.toString())}">Quiz CSV</a>
+        </div>
+        ${
+          quizVisitRows
+            ? `<div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Session</th>
+                      <th>Seitenaufruf</th>
+                      <th>Datenschutzwahl</th>
+                      <th>Quiz gestartet</th>
+                      <th>Lernphase</th>
+                      <th>Fach</th>
+                      <th>Frage 1</th>
+                      <th>Frage 2</th>
+                      <th>Frage 3</th>
+                      <th>Ergebnis</th>
+                      <th>Score</th>
+                      <th>E-Mail begonnen</th>
+                      <th>E-Mail gesendet</th>
+                    </tr>
+                  </thead>
+                  <tbody>${quizVisitRows}</tbody>
+                </table>
+              </div>`
+            : '<div class="empty">Noch keine Quiz-Seitenaufrufe vorhanden.</div>'
         }
       </section>
     </main>
@@ -884,7 +982,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const loadedSignups = await readSignups();
+  const [loadedSignups, quizVisits] = await Promise.all([readSignups(), listQuizVisits()]);
   const normalizedResult = ensureReferralFields(loadedSignups);
   const signups = normalizedResult.signups;
 
@@ -904,11 +1002,22 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  if (format === "quiz-visits-csv") {
+    return new NextResponse(buildQuizVisitsCsv(quizVisits), {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": 'inline; filename="medula-quiz-visits.csv"',
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
   if (format === "json") {
     return NextResponse.json(
       {
         total: signups.length,
         signups: signups.slice().reverse(),
+        quizVisits,
       },
       {
         headers: {
@@ -918,7 +1027,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return new NextResponse(buildWaitlistHtml(signups, request), {
+  return new NextResponse(buildWaitlistHtml(signups, quizVisits, request), {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
